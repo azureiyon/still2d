@@ -181,6 +181,7 @@ export class Animator {
     const k = (tau: number) => 1 - Math.exp(-h / tau);
 
     this.idle += (this.idleTarget - this.idle) * k(0.22);
+    if (Math.abs(this.idle - this.idleTarget) < 0.002) this.idle = this.idleTarget; // settle exactly, so a paused picture can stop redrawing
     const idle = this.idle;
     if (this.demo) this.demoId = this.demo;
     this.demoGain += ((this.demo ? 1 : 0) - this.demoGain) * k(0.15);

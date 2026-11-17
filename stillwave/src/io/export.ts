@@ -169,6 +169,6 @@ export async function runExport(doc: Doc, o: ExportOptions, progress: Progress):
     case 'gif': return { blob: await exportGif(doc, o, progress), ext: '.gif', label: 'Animated GIF' };
     case 'png': return { blob: await exportPngZip(doc, o, progress), ext: '.zip', label: 'PNG frames' };
     case 'webm': return { blob: await exportWebm(doc, o, progress), ext: '.webm', label: 'WebM video' };
-    case 'html': return { blob: exportHtml(doc, o.background), ext: '.html', label: 'Avatar page' };
+    case 'html': return { blob: exportHtml(doc, o.background), ext: '.html', label: 'Interactive page' };
   }
 }

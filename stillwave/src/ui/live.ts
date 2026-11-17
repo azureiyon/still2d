@@ -12,6 +12,9 @@ export const live = {
   renderer: null as Renderer | null,
   /** Mesh edges the fold guard corrected in the last frame. */
   guarded: 0,
+  /** Frames actually drawn (a still picture is not redrawn). */
+  frames: 0,
+  overlays: 0,
   /** Testing aid: hold every eye's lid at this height. */
   scrubAll: null as number | null,
 };

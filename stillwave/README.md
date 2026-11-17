@@ -1,108 +1,127 @@
 # Stillwave
 
-Turn a character illustration into a blinking, breathing 2D avatar by painting
-the parts that should move. No bones, no parameters to wire up.
+Animate an illustration by painting the parts that should move. Import a flat
+PNG or a layered PSD, mark eyes, hair, head and chest, refine the result, and
+export a GIF, video or frame sequence. No bones and no rig to wire up.
 
 ## Run it
 
-Needs Node 20+ and a modern browser (Chrome or Edge recommended; WebGL2 required).
+Needs Node 20+ and a current Chrome or Edge on Windows, macOS or Linux (WebGL2 required).
 
 ```
+cd stillwave
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # then open http://localhost:5173
 ```
 
 For a static build: `npm run build`, then `npm run preview` (or serve `dist/`).
-
 Nothing leaves your machine. There is no server, account or API.
 
-## How it works for the artist
+## The workflow
 
-1. **Artwork** – drop a PNG, several PNGs, or a layered PSD. Move, resize, rotate
-   and reorder layers. Set a layer "near" or "far" for parallax.
-2. **Motion** – add motions and place them directly on the picture:
-   - **Eye**: fit an outline to the eye opening. Pull the small tab beside it to
-     close the lid by hand. Mirror it to the other eye.
-   - **Mouth**: fit a line to the lips.
-   - **Head / Sway / Breath**: brush over the area. Paint from root to tip for
-     hair and the direction is set for you.
-   Pause shows the still drawing with tinted washes and handles; hover any
-   motion to watch only that part move. Play shows the live result.
-3. **Stage** – perform with moods (keys 1–9), pointer tracking and microphone
-   lip movement, then export.
+1. **Artwork**: drop in a PNG, several PNGs or a layered PSD. Move, scale, rotate,
+   reorder and set a layer near or far for parallax. Retouch any layer with the
+   brush, clone tool and eraser; the original pixels are always kept and can be
+   restored. Add an empty **repair layer** to paint over problems without
+   touching the artwork. Paint modes: *Over*, *Behind* (fills only empty pixels,
+   for underpainting) and *Inside* (recolours only existing pixels).
+2. **Motion**: add motions and place them on the picture.
+   - **Eye**: fit the outline to the opening. Pull the tab beside it to close the
+     lid; it stays where you leave it. Double-click a lid line to add a shaping
+     point. Choose how hidden skin is made (*Blend skin* or *Pull skin down*), and
+     when the automatic result isn't enough, paint the lid yourself: **Lid skin**
+     (brush or clone), **Lashes** (extra lashes that travel with the lid) and
+     **Keep** (hair or detail the blink must never touch). Mirror to the other eye.
+   - **Sway**: brush over a lock from root to tip. Choose **Swing** (turns as one
+     piece), **Bend** (curls toward the tip) or **Flutter** (bend plus a quick,
+     light tip). Double-click the dotted spine to add points so it follows a curl.
+     **Lift onto its own layer** cuts the lock out, fills the gap behind it with
+     a guess, and lets it move over the picture instead of dragging it.
+   - **Head**, **Breath**, **Mouth** as before, and **Hold still**: paint anything
+     that must never move, such as a face under swaying hair or a shoulder.
 
-## What is implemented
+   Paused shows tinted washes and handles; hover any motion to watch only that
+   part move. **Rhythm** has one-click looks (*Still life*, *Natural*, *Lively*,
+   *Breezy*) plus timing, blink shape and drift controls. **Expression** holds a
+   pose (lids, mouth, head, per-expression layer swaps) that blinking and sway
+   play over.
+3. **Export**: the canvas shows the finished animation. Choose an expression and
+   background, then save an **animated GIF**, **WebM video** (with transparency in
+   Chromium), a **zip of PNG frames**, or an **interactive page** (one offline
+   HTML file that plays live). Pointer-following and the microphone are tucked
+   under *Live preview extras*.
 
-| Area | Status |
-| --- | --- |
-| PNG / WebP / JPEG import, multi-file | Working |
-| Layered PSD import (pixel layers, groups flattened, position, opacity, hidden) | Working; blend modes, masks, adjustment and text layers are not interpreted |
-| Layer move / scale / rotate / reorder / hide / depth | Working |
-| Blink with editable shape, interval, irregularity, half and double blinks | Working |
-| Eyelids on flattened art (upper and lower lid, closing curve) | Working |
-| Gaze (iris shift), pointer following, wandering gaze | Working |
-| Breathing, idle head drift, body sway | Working |
-| Head turn / nod / tilt with fake depth | Working |
-| Hair and cloth sway with spring physics, breeze, ripple | Working |
-| Moods (expressions) with eased transitions and per-mood layer swaps | Working |
-| Mouth open / smile, microphone-driven | Working |
-| Undo / redo (including brush strokes), keyboard shortcuts | Working |
-| Save / open `.stillwave` projects, autosaved last session | Working |
-| Export: standalone avatar HTML, GIF, WebM, PNG frame zip | Working |
+Everything is undoable, including brush strokes, eye paint and lifting. The last
+session is autosaved in the browser; **Save** writes a `.stillwave` file that
+holds every image, mask and setting. Projects from the first build still open.
 
-Shortcuts: `Space` play/pause, `V` select, `B` brush, `E` erase, `[` `]` brush
-size, `1`–`9` moods, `F` fit view, `Tab` panels, `Ctrl+Z` / `Ctrl+Shift+Z`,
-`Ctrl+S`, `Ctrl+E`. Wheel zooms, middle-drag or Space-drag pans.
+Shortcuts: `Space` play/pause, `V` select, `B` brush, `E` eraser, `C` clone
+(Alt-click sets the source; with the brush, Alt-click picks a colour), `[` `]`
+brush size, `1`–`9` expressions, `F` fit view, `Tab` panels, `Ctrl+Z` /
+`Ctrl+Shift+Z`, `Ctrl+S`, `Ctrl+E` export. Wheel zooms; middle-drag or
+Space-drag pans.
 
 ## Architecture
 
 ```
-src/engine/   framework-free animation core (shared by editor and exported player)
-  types.ts    document model
-  assets.ts   image + mask registries, project pack/unpack
-  rig.ts      Animator: fixed 120 Hz step -> RigFrame (blink, breath, springs, moods)
-  gl.ts       WebGL2 renderer: per-layer grid mesh + warp shader
-  paint.ts    motion brush
-  geom.ts     eye/mouth curve maths (mirrors the shader)
+src/engine/   framework-free animation core, shared by the editor and the exported page
+  types.ts    document model (+ normalizeDoc for older files)
+  assets.ts   image and mask registries, project pack/unpack, garbage collection
+  rig.ts      Animator: fixed 120 Hz step -> RigFrame (blinks, breath, sway springs, expressions)
+  gl.ts       WebGL2 renderer: per-layer grid mesh, sway transport, fold guard, eye/mouth shader
+  geom.ts     lid curves (peak or monotone spline through points), sway spine
+  retouch.ts  brush/clone/erase strokes, pull-push hole filling, lifting a region to its own layer
+  paint.ts    motion-mask brush
 src/state/    zustand store with immer; undo history, actions
-src/io/       import (PNG/PSD), project save/open/autosave, exporters
-src/ui/       React UI; Stage.tsx owns the canvas and all direct manipulation
-src/player/   standalone runtime, built to one IIFE and inlined into exported HTML
-src/sample/   the built-in sample character, drawn with canvas paths
+src/io/       PNG/PSD import, project save/open/autosave, exporters
+src/ui/       React UI; Stage.tsx owns the canvas and every direct-manipulation gesture
+src/player/   standalone runtime, built to one script and inlined into exported pages
+tests/        Playwright browser tests and fixtures (see tests/README.md)
 ```
 
-Two kinds of deformation are combined:
+Motion is split by scale:
 
-- **Mesh warp (CPU)** for broad motion. Every layer is a grid; painted masks give
-  each vertex a weight per motion. Sway bends vertices around a root with a
-  spring whose history is replayed along the length, so tips trail roots.
-- **Texture remap (fragment shader)** for fine motion. Eyelids, gaze and mouth
-  are computed per pixel in rest-pose space, so they stay crisp and ride along
-  with the mesh.
+- **Mesh (CPU)** for broad motion. Each layer is a grid. Sway carries every
+  vertex along a root-to-tip spine: each point keeps its offset from the spine
+  and turns with it, so a lock keeps its drawn width. The paint weight scales
+  the *angle* a point receives rather than blending positions, so soft edges
+  twist gently instead of smearing. Overlapping sways share a vertex by squared
+  weight. Hold-still paint pins vertices after all motion, and a fold guard eases
+  back any grid edge squeezed or stretched past its limits.
+- **Shader (per pixel)** for the face. Eyelids, gaze and mouth remap texture
+  lookups in rest-pose space, so they stay sharp and ride along with the mesh.
+  The lash band is slid down over the eye; the uncovered skin is a blend of the
+  skin tones above and below the eye (rejecting samples whose hue doesn't match
+  skin, such as a fringe), with brushwork carried over from the strip above the
+  lashes. Hand-painted lid skin, lash and keep marks are stored per eye and read
+  by the same pass.
 
-An eyelid is not drawn. The lash line and a thin strip of skin above it are
-slid down over the eye, and that strip stretches to fill the gap. The iris is
-covered, never squashed, and the lid is made of the artist's own pixels.
+Pixel data is immutable and referenced by id. A retouch stroke, a mask stroke
+or a lift produces new images and swaps ids in the document, which is what makes
+every edit a normal undo step. Unreferenced images are collected periodically.
 
-Pixel data is immutable and referenced by id, which is what makes brush strokes
-undoable: undo swaps a mask id back.
+[docs/REFERENCE_STUDY.md](docs/REFERENCE_STUDY.md) compares this implementation
+with the earlier Stillwave project it learned from, with rendered comparisons.
 
 ## Known limitations
 
-- Flattened artwork is bent, not separated. Large head turns stretch the neck,
-  and anything hidden behind something else cannot be revealed. The app says so
-  in the Artwork panel. Layers remove these limits.
-- The eyelid needs a fairly clean strip of skin above the lashes. An eyebrow or
-  fringe sitting right on the lash line will be stretched into the lid.
-- Eyes and mouths are placed by hand; there is no automatic face detection.
-- The mouth is a simple open/smile warp with a flat inside colour: no teeth,
-  tongue or phoneme shapes. For drawn mouth shapes, use per-mood layer swaps.
-- Up to 4 eyes and 2 mouths per layer. Artwork is capped at 4096 px per side.
-- GIF has 256 colours and 1-bit transparency. WebM is recorded in real time by
-  the browser's own encoder; transparency was verified in Chromium only.
-- PSD blend modes, clipping masks and layer effects are ignored.
-- Not built yet: timeline-style keyframes, physics collisions, VTube-style
-  webcam face tracking, mobile/touch layout.
-- Frame rate was only measured under software rendering in a headless test
-  browser. Script time per frame is small, but real-GPU performance on large
-  PSDs has not been profiled.
+- Flattened art is bent, not separated. Lifting a strand helps, but the gap
+  behind it is a smooth guess that usually needs repainting on detailed art.
+- On painterly art the blended lid skin reads well at normal size but looks like
+  a patch when zoomed in; hand-painted or cloned lid skin is the fix. Eyes and
+  mouths are fitted by hand; there is no lash or face detection, and a careless
+  fit (the upper curve on top of the lash stroke instead of below it) gives a
+  visibly wrong blink.
+- Swing on a flat mask stretches the soft border more than Bend does. Hold-still
+  can tear a soft strand where it crosses a held area.
+- Eye paint is stored at 256 × 256 per eye. Up to 8 eyes per project (4 on any
+  one layer), 2 mouths per layer, 6 points per lid or spine. Clone samples the
+  visible artwork at rest, up to 2048 px.
+- The fold guard is a simple three-pass edge correction, not a full strain solver.
+- PSD blend modes, clipping masks and layer effects are ignored. GIF has 256
+  colours and hard-edged transparency. WebM is recorded in real time;
+  transparency was verified in Chromium only.
+- No keyframe timeline, physics collisions or automatic segmentation.
+- Performance was measured only under software rendering in a headless browser.
+  A still, paused picture is not redrawn at all; real-GPU cost on large PSDs has
+  not been profiled.

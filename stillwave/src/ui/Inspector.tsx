@@ -83,7 +83,7 @@ function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
         <>
           <Section title="How it moves">
             <div className="seg seg-small seg-fill" role="group" aria-label="Movement style">
-              {([['swing', 'Swing', 'Turns as one piece from the root. Best for stiff shapes, ears, ribbons and lifted patches.'], ['bend', 'Bend', 'Curls more toward the tip, like a hanging lock.'], ['flutter', 'Flutter', 'A bend with a quick, light tip, for wisps and fine strands.']] as const).map(([id, label, hint]) => (
+              {([['swing', 'Swing', 'Turns as one piece from the root. Best for lifted patches, ears and ribbons. On flat art the soft edge has to stretch more than with Bend.'], ['bend', 'Bend', 'Curls more toward the tip, like a hanging lock.'], ['flutter', 'Flutter', 'A bend with a quick, light tip, for wisps and fine strands.']] as const).map(([id, label, hint]) => (
                 <button key={id} className={zone.style === id ? 'is-on' : ''} title={hint} onClick={() => editZone(zone.id, (z) => { if (z.type === 'sway') z.style = id; })}>{label}</button>
               ))}
             </div>

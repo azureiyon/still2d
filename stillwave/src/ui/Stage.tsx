@@ -668,6 +668,8 @@ export function Stage() {
     // ------------------------------------------------------------ frame loop
     let lastSig = '';
     let lastDoc: Doc | null = null;
+    let lastRenderDoc: Doc | null = null;
+    let lastLook = '';
     let wasDragging = false;
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
@@ -706,8 +708,21 @@ export function Stage() {
 
       const v = live.view;
       const stageBg = s.mode === 'stage' ? d.stage.background : 'transparent';
-      renderer.render(d, f, { zoom: v.zoom * dpr, panX: v.panX * dpr, panY: v.panY * dpr }, { wire: s.wire && s.mode === 'motion', ghost: s.mode === 'artwork', livePaint });
-      live.guarded = renderer.guarded;
+      // A still picture is not redrawn: paused editing then costs next to nothing.
+      const q = (x: number) => Math.round(x * 400); // finer than a pixel for any realistic size
+      let pose = `${q(f.head.turn)},${q(f.head.nod)},${q(f.head.tilt)},${q(f.breath)},${q(f.body.rot)},${q(f.body.bob)}`;
+      for (const k in f.eyes) { const e = f.eyes[k]; pose += `|${q(e.upper)},${q(e.lower)},${q(e.arc)},${q(e.gx)},${q(e.gy)}`; }
+      for (const k in f.mouths) pose += `|${q(f.mouths[k].open)},${q(f.mouths[k].smile)}`;
+      for (const k in f.sway) { const c = f.sway[k]; pose += `|${q(c[c.length - 1])},${q(c[c.length >> 1])}`; }
+      for (const k in f.layerAlpha) pose += `|${q(f.layerAlpha[k])}`;
+      const look = [pose, v.zoom, v.panX, v.panY, W, H, s.wire, s.mode].join(';');
+      if (drag || livePaint || d !== lastRenderDoc || look !== lastLook) {
+        renderer.render(d, f, { zoom: v.zoom * dpr, panX: v.panX * dpr, panY: v.panY * dpr }, { wire: s.wire && s.mode === 'motion', ghost: s.mode === 'artwork', livePaint });
+        live.guarded = renderer.guarded;
+        lastRenderDoc = d;
+        lastLook = look;
+        live.frames++;
+      }
 
       board.style.display = d.layers.length ? '' : 'none';
       board.style.transform = `translate(${v.panX}px, ${v.panY}px)`;
@@ -727,6 +742,7 @@ export function Stage() {
         lastDoc = s.doc;
         wasDragging = !!drag;
         drawOverlay(dpr);
+        live.overlays++;
       }
     };
     raf = requestAnimationFrame(frame);
