@@ -26,6 +26,9 @@ const PATHS: Record<string, string> = {
   panels: 'M3 4h18v16H3zM8 4v16M16 4v16',
   image: 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M15.500 9.500h.010',
   spark: 'M12 3l2.200 6.800L21 12l-6.800 2.200L12 21l-2.200-6.800L3 12l6.800-2.200z',
+  pick: 'M14.500 4.500a2.800 2.800 0 0 1 4 4L16 11l1 1-1.500 1.500-1-1-6.500 6.500H5v-3l6.500-6.500-1-1L12 7l1 1zM6.500 15.500l3 3',
+  file: 'M6 3h8l4 4v14H6zM14 3v4h4M12 11v6M9 14h6',
+  path: 'M5 19c3-1 4-5 7-7s6-2 7-7M5 19h.010M12 12h.010M19 5h.010',
 };
 
 export function Icon({ name, size = 16, fill }: { name: string; size?: number; fill?: boolean }) {

@@ -1,6 +1,8 @@
-import { images, makeCanvas, zoneBounds } from '../engine/assets';
+import { images, makeCanvas, maskAlpha, masks, zoneBounds } from '../engine/assets';
 import { liftRegion, newRepairLayer } from '../engine/retouch';
-import { axisFrame, curvesFromSimple, eyeBox, mirrorEye } from '../engine/geom';
+import { axisFrame, curvesFromSimple, eyeBox, mirrorEye, spineAt, spineBind, swaySpine, traceStrand } from '../engine/geom';
+import { emptyDoc, type SwayZone } from '../engine/types';
+import { saveProject, writeSession } from '../io/project';
 import { eyeAxis } from '../engine/rig';
 import { isPaintZone, makeZone, neutralPose, uid, ZONE_INFO, type EyeZone, type ZoneType } from '../engine/types';
 import { live } from '../ui/live';
@@ -26,11 +28,13 @@ export function addZone(type: ZoneType) {
 
 export function deleteZone(id: string) {
   const s = S();
+  const name = s.doc.zones.find((z) => z.id === id)?.name;
   s.edit((d) => {
     d.zones = d.zones.filter((z) => z.id !== id);
     for (const z of d.zones) if (z.type === 'eye' && z.pair === id) z.pair = null;
   });
-  if (s.zoneId === id) s.set({ zoneId: null, tool: 'move' });
+  if (s.zoneId === id) s.set({ zoneId: null, tool: 'move', pathSel: null, nodeSel: null });
+  if (name) s.toast(`Deleted “${name}”. Ctrl+Z brings it back.`);
 }
 
 /** Create (or re-shape) the partner of an eye as its mirror image. */
@@ -204,4 +208,62 @@ export function focusEye(id: string) {
   const zoom = Math.min(24, Math.min(w / (box.w * 1.15), h / (box.h * 1.15)));
   const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
   live.view = { zoom, panX: (s.panels ? 300 : 40) + w / 2 - cx * zoom, panY: 90 + h / 2 - cy * zoom };
+}
+
+// ---- sway paths
+
+const swayOf = (id: string) => S().doc.zones.find((z): z is SwayZone => z.id === id && z.type === 'sway');
+
+/** Add a point half way along the longest stretch of the strand's path. */
+export function addPathPoint(id: string) {
+  const z = swayOf(id);
+  if (!z || z.path.length >= 8) return;
+  const sp = swaySpine(z);
+  // where each control point sits along the curve
+  const at = sp.ctrl.map((c) => spineBind(sp, c.x, c.y).at);
+  at[0] = 0; at[at.length - 1] = 1;
+  let best = 0;
+  for (let i = 1; i < at.length - 1; i++) if (at[i + 1] - at[i] > at[best + 1] - at[best]) best = i;
+  const p = spineAt(sp, (at[best] + at[best + 1]) / 2);
+  S().editZone<SwayZone>(id, (x) => { x.path.splice(best, 0, p); x.auto = false; });
+  S().set({ pathSel: best });
+}
+
+export function removePathPoint(id: string, i: number) {
+  S().editZone<SwayZone>(id, (x) => { x.path.splice(i, 1); });
+  S().set({ pathSel: null });
+}
+
+export function straightenPath(id: string) {
+  S().editZone<SwayZone>(id, (x) => { x.path = []; });
+  S().set({ pathSel: null });
+}
+
+/** Swap root and tip, for strands painted from the wrong end. */
+export function reversePath(id: string) {
+  S().editZone<SwayZone>(id, (x) => { const a = x.anchor; x.anchor = x.tip; x.tip = a; x.path = [...x.path].reverse(); });
+  S().set({ pathSel: null });
+}
+
+/** Lay the path along the middle of the painted strand, from the root out to its far end. */
+export function followPaint(id: string) {
+  const s = S();
+  const z = swayOf(id);
+  const m = z?.mask ? masks.get(z.mask) : null;
+  if (!z || !m) { s.toast('Paint the strand first.'); return; }
+  const r = traceStrand(maskAlpha(m), m.w, m.h, s.doc.width, s.doc.height, z.anchor, 4);
+  if (!r) { s.toast('Could not follow the paint from the root. Move the root ring onto the painted strand.', 'error'); return; }
+  s.editZone<SwayZone>(id, (x) => { x.path = r.path; x.tip = r.tip; x.auto = false; });
+  s.set({ pathSel: null });
+}
+
+// ---- starting over
+
+/** Put the current work aside and go back to the start screen. It stays recoverable there. */
+export async function newCanvas(saveFirst: boolean) {
+  const s = S();
+  if (saveFirst) await saveProject();
+  try { await writeSession(S().doc); } catch { /* recovery copy is best effort */ }
+  S().load(emptyDoc());
+  S().set({ newOpen: false, mode: 'artwork', playing: false });
 }

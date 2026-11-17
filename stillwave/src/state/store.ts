@@ -5,7 +5,7 @@ import type { PaintMode } from '../engine/retouch';
 import { emptyDoc, type Doc, type Vec, type Zone } from '../engine/types';
 
 export type Mode = 'artwork' | 'motion' | 'stage';
-export type Tool = 'move' | 'brush' | 'erase' | 'clone';
+export type Tool = 'move' | 'brush' | 'erase' | 'clone' | 'pick';
 /** What the brush paints on a selected eye: lid skin, lash marks or keep marks. */
 export type EyeLayer = 'skin' | 'lash' | 'keep';
 export interface Brush { size: number; soft: number; opacity: number; color: string; mode: PaintMode }
@@ -29,6 +29,10 @@ interface State {
   lidHold: Record<string, number>; // held lid position per eye while editing
   cloneFrom: Vec | null;
   nodeSel: string | null; // selected precise-curve node, e.g. 'up:2'
+  pathSel: number | null; // selected point on a sway path
+  recent: string[]; // recently used brush colours, newest first
+  pickReturn: Tool; // tool to go back to after the eyedropper picks
+  newOpen: boolean; // the 'start a new canvas' prompt
   layerId: string | null;
   zoneId: string | null;
   exprId: string | null;
@@ -67,6 +71,10 @@ export const useStore = create<State>((set, get) => ({
   lidHold: {},
   cloneFrom: null,
   nodeSel: null,
+  pathSel: null,
+  recent: [],
+  pickReturn: 'brush',
+  newOpen: false,
   layerId: null,
   zoneId: null,
   exprId: null,
@@ -110,7 +118,7 @@ export const useStore = create<State>((set, get) => ({
     set({
       doc, past: [], future: [], dirty: false,
       layerId: doc.layers[doc.layers.length - 1]?.id ?? null,
-      zoneId: null, exprId: doc.expressions[0]?.id ?? null, lidHold: {}, cloneFrom: null,
+      zoneId: null, exprId: doc.expressions[0]?.id ?? null, lidHold: {}, cloneFrom: null, nodeSel: null, pathSel: null, newOpen: false,
       mode: doc.zones.length ? 'motion' : 'artwork', playing: doc.zones.length > 0, tool: 'move',
       tab: 'rhythm', viewNonce: get().viewNonce + 1,
     }),
@@ -127,3 +135,11 @@ export const useStore = create<State>((set, get) => ({
 }));
 
 export const getDoc = () => useStore.getState().doc;
+
+/** Remember a brush colour in the recent swatches. */
+export function rememberColor(c: string) {
+  const s = useStore.getState();
+  const v = c.toLowerCase();
+  if (s.recent[0] === v) return;
+  s.set({ recent: [v, ...s.recent.filter((x) => x !== v)].slice(0, 10) });
+}

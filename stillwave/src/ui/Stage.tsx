@@ -7,7 +7,7 @@ import { fitView, Renderer } from '../engine/gl';
 import { beginMask, strokeSegment } from '../engine/paint';
 import { boxAffine, compositeRest, layerAffine, pickColor, Stroke } from '../engine/retouch';
 import { isPaintZone, ZONE_INFO, type Doc, type EyeCurve, type EyeZone, type Layer, type MouthZone, type Vec, type Zone } from '../engine/types';
-import { useStore } from '../state/store';
+import { rememberColor, useStore } from '../state/store';
 import { live } from './live';
 import { CURVE_COLOR } from './curveColors';
 
@@ -142,6 +142,22 @@ export function Stage() {
     let last = performance.now();
     let cloneOffset: Vec | null = null;
     let cloneOffsetFor: Vec | null = null;
+    let altDown = false;
+    let curDpr = 1;
+    const sampleCanvas = makeCanvas(9, 9);
+    const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true })!;
+    /** Average colour of what is drawn on screen under a point (the artwork, not the overlay). */
+    const sampleScreen = (sp: Vec): string | null => {
+      const x = Math.round(sp.x * curDpr), y = Math.round(sp.y * curDpr);
+      sampleCtx.clearRect(0, 0, 9, 9);
+      sampleCtx.drawImage(glCanvas, x - 1, y - 1, 3, 3, 0, 0, 3, 3);
+      const d = sampleCtx.getImageData(0, 0, 3, 3).data;
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let i = 0; i < d.length; i += 4) { const w = d[i + 3] / 255; r += d[i] * w; g += d[i + 1] * w; b += d[i + 2] * w; a += w; }
+      if (a < 0.5) return null;
+      // canvas pixels come back un-premultiplied already; weight by coverage only
+      return '#' + [r / a, g / a, b / a].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+    };
 
     const size = () => ({ w: el.clientWidth, h: el.clientHeight });
     const toDoc = (sx: number, sy: number): Vec => ({ x: (sx - live.view.panX) / live.view.zoom, y: (sy - live.view.panY) / live.view.zoom });
@@ -208,7 +224,7 @@ export function Stage() {
 
     const strokeOptions = (p: Vec, colorOverride?: string) => {
       const s = S();
-      const tool = s.tool === 'move' ? 'brush' : s.tool;
+      const tool = s.tool === 'move' || s.tool === 'pick' ? 'brush' : s.tool;
       let source, offset;
       if (tool === 'clone') {
         if (!s.cloneFrom) return null;
@@ -242,12 +258,15 @@ export function Stage() {
       }
 
       const painting = s.tool !== 'move';
-      // Alt-click with a paint tool: pick a colour, or choose where the clone copies from
-      if (painting && e.altKey) {
-        if (s.tool === 'clone') { s.set({ cloneFrom: p }); cloneOffset = null; }
-        else { const c = pickColor(doc, p); if (c) s.set({ brush: { ...s.brush, color: c } }); }
+      // The eyedropper, or Alt-click with the brush: take the colour that is on screen
+      if (s.tool === 'pick' || (painting && e.altKey && s.tool !== 'clone')) {
+        const c = sampleScreen(sp) ?? pickColor(doc, p);
+        if (c) { s.set({ brush: { ...s.brush, color: c }, ...(s.tool === 'pick' ? { tool: s.pickReturn } : {}) }); rememberColor(c); }
         return;
       }
+      // Alt-click with the clone tool: choose where it copies from
+      if (painting && e.altKey) { s.set({ cloneFrom: p }); cloneOffset = null; return; }
+      if (s.tool === 'brush') rememberColor(s.brush.color);
 
       if (s.mode === 'artwork') {
         const sel = doc.layers.find((l) => l.id === s.layerId);
@@ -309,6 +328,7 @@ export function Stage() {
         if (h) {
           drag = { kind: 'handle', zone: zone.id, handle: h.id, key };
           if (h.id[0] === 'N' && h.id[1] === ':') s.set({ nodeSel: h.id.slice(2) });
+          if (zone.type === 'sway') s.set({ pathSel: h.id[0] === 'p' ? Number(h.id.slice(1)) : null });
           if (h.id === 'lid') onMove(e);
           return;
         }
@@ -443,14 +463,15 @@ export function Stage() {
       const near = 9 / live.view.zoom;
       const h = handleAt(zone, sp);
       if (zone.type === 'sway') {
-        if (h && h.id[0] === 'p') { s.editZone(zone.id, (z) => { if (z.type === 'sway') z.path.splice(Number(h.id.slice(1)), 1); }); return; }
+        if (h && h.id[0] === 'p') { s.editZone(zone.id, (z) => { if (z.type === 'sway') z.path.splice(Number(h.id.slice(1)), 1); }); s.set({ pathSel: null }); return; }
         if (h) return;
         const spine = swaySpine(zone);
         const b = spineBind(spine, p.x, p.y);
-        if (Math.hypot(b.cx - p.x, b.cy - p.y) > near || zone.path.length >= 6) return;
+        if (Math.hypot(b.cx - p.x, b.cy - p.y) > near || zone.path.length >= 8) return;
         // insert in order along the spine
         const index = zone.path.filter((q) => spineBind(spine, q.x, q.y).at < b.at).length;
         s.editZone(zone.id, (z) => { if (z.type === 'sway') z.path.splice(index, 0, p); });
+        s.set({ pathSel: index });
       } else if (zone.type === 'eye' && zone.edit === 'precise' && zone.curves) {
         if (h && h.id[0] === 'N' && h.id[1] === ':') {
           const [, c, si] = h.id.split(':') as [string, EyeCurve, string];
@@ -508,9 +529,19 @@ export function Stage() {
     };
 
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') altDown = e.type === 'keydown';
       if (e.type === 'keydown' && e.key.startsWith('Arrow') && !(e.target as HTMLElement).closest('input, textarea, [contenteditable], [role=slider]')) {
         const s = S();
         const zone = s.doc.zones.find((z) => z.id === s.zoneId);
+        if (s.mode === 'motion' && !s.playing && zone?.type === 'sway' && s.pathSel !== null && zone.path[s.pathSel]) {
+          e.preventDefault();
+          const step = (e.shiftKey ? 10 : 1) / live.view.zoom;
+          const dx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+          const dy = e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0;
+          const i = s.pathSel;
+          s.editZone(zone.id, (z) => { if (z.type === 'sway') z.path[i] = { x: z.path[i].x + dx, y: z.path[i].y + dy }; }, `nudge:${zone.id}:p${i}`);
+          return;
+        }
         if (s.mode === 'motion' && !s.playing && zone?.type === 'eye' && zone.edit === 'precise' && zone.curves && s.nodeSel) {
           e.preventDefault();
           const [c, si] = s.nodeSel.split(':') as [EyeCurve, string];
@@ -576,7 +607,7 @@ export function Stage() {
       ctx.restore();
     };
     const brushRing = (color: string) => {
-      if (!cursor) return;
+      if (!cursor || S().tool === 'pick') return;
       const s = S();
       const r = (s.brush.size / 2) * live.view.zoom;
       ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(20,24,36,0.5)';
@@ -599,6 +630,41 @@ export function Stage() {
     };
 
     const drawOverlay = (dpr: number) => {
+      drawOverlayInner(dpr);
+      const s = S();
+      const picking = s.tool === 'pick' || (altDown && (s.tool === 'brush') && s.mode !== 'stage');
+      if (!picking || !cursor) return;
+      // a magnifier over what is under the eyedropper
+      const R = 54, Z = 9;
+      const cx = cursor.x + 70 > size().w ? cursor.x - 70 : cursor.x + 70, cy = cursor.y - 70 < 0 ? cursor.y + 70 : cursor.y - 70;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.closePath();
+      ctx.fillStyle = '#1b2030'; ctx.fill();
+      ctx.clip();
+      ctx.imageSmoothingEnabled = false;
+      const src = (R * 2 * dpr) / Z;
+      ctx.drawImage(glCanvas, cursor.x * dpr - src / 2, cursor.y * dpr - src / 2, src, src, cx - R, cy - R, R * 2, R * 2);
+      ctx.restore();
+      const c = sampleScreen(cursor);
+      ctx.lineWidth = 6; ctx.strokeStyle = c ?? '#1b2030';
+      ctx.beginPath(); ctx.arc(cx, cy, R + 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(cx, cy, R + 6.5, 0, Math.PI * 2); ctx.stroke();
+      const px = Z / dpr;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(cx - px / 2, cy - px / 2, px, px);
+      ctx.fillStyle = 'rgba(20,24,36,0.85)'; ctx.font = '600 11px "Figtree Variable", system-ui, sans-serif';
+      const label = c ?? 'empty';
+      const tw = ctx.measureText(label).width + 12;
+      ctx.beginPath(); ctx.roundRect(cx - tw / 2, cy + R + 12, tw, 18, 9); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.fillText(label, cx, cy + R + 25); ctx.textAlign = 'left';
+      // small crosshair at the real cursor
+      ctx.strokeStyle = 'rgba(20,24,36,0.8)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(cursor.x - 7, cursor.y); ctx.lineTo(cursor.x + 7, cursor.y); ctx.moveTo(cursor.x, cursor.y - 7); ctx.lineTo(cursor.x, cursor.y + 7); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2; ctx.stroke();
+    };
+
+    const drawOverlayInner = (dpr: number) => {
       const s = S();
       const d = s.doc;
       const { w, h } = size();
@@ -760,7 +826,7 @@ export function Stage() {
             ctx.strokeStyle = hd.color ?? color; ctx.lineWidth = 1.2; ctx.stroke();
           }
         }
-        for (const hd of zoneHandles(zone, v.zoom, hold(zone.id), s.nodeSel)) drawHandle(hd, hd.color ?? color, hd.id === activeHandle);
+        for (const hd of zoneHandles(zone, v.zoom, hold(zone.id), s.nodeSel)) drawHandle(hd, zone.type === 'sway' && s.pathSel !== null && hd.id === `p${s.pathSel}` ? '#ffffff' : hd.color ?? color, hd.id === activeHandle);
       }
       // brush ring for motion paint
       if (zone && isPaintZone(zone) && s.tool !== 'move') brushRing(s.tool === 'erase' ? '#ffffff' : ZONE_INFO[zone.type].color);
@@ -779,6 +845,7 @@ export function Stage() {
       const { w, h } = size();
       if (w < 2 || h < 2) return;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
+      curDpr = dpr;
       const W = Math.round(w * dpr), H = Math.round(h * dpr);
       renderer.resize(W, H);
       if (ov.width !== W || ov.height !== H) { ov.width = W; ov.height = H; }
@@ -836,8 +903,8 @@ export function Stage() {
       el.style.cursor = spaceDown || drag?.kind === 'pan' ? 'grabbing' : paintCursor ? 'none' : hoverHandle || s.hoverZone ? 'pointer' : 'default';
 
       // the overlay only repaints when something it shows has changed
-      const brushing = s.tool !== 'move' && cursor ? `${cursor.x},${cursor.y}` : '';
-      const sig = [s.mode, s.playing, s.tab, s.zoneId, s.nodeSel, s.hoverZone, s.layerId, s.tool, s.brush.size, s.brush.soft, s.brush.color, s.eyeLayer, s.cloneFrom?.x, s.cloneFrom?.y, s.zoneId ? s.lidHold[s.zoneId] : 0, v.zoom, v.panX, v.panY, brushing, hoverHandle, a.demo, W, H].join('|');
+      const brushing = (s.tool !== 'move' || altDown) && cursor ? `${cursor.x},${cursor.y},${altDown}` : '';
+      const sig = [s.mode, s.playing, s.tab, s.zoneId, s.nodeSel, s.pathSel, s.hoverZone, s.layerId, s.tool, s.brush.size, s.brush.soft, s.brush.color, s.eyeLayer, s.cloneFrom?.x, s.cloneFrom?.y, s.zoneId ? s.lidHold[s.zoneId] : 0, v.zoom, v.panX, v.panY, brushing, hoverHandle, a.demo, W, H].join('|');
       if (drag || wasDragging || sig !== lastSig || s.doc !== lastDoc) {
         lastSig = sig;
         lastDoc = s.doc;

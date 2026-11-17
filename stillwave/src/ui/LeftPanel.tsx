@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ZONE_INFO, type ZoneType } from '../engine/types';
 import { ARTWORK_TYPES, importFiles, pickFiles } from '../io/import';
-import { addRepairLayer, addZone, deleteLayer, layerThumb, moveLayer } from '../state/actions';
+import { addRepairLayer, addZone, deleteLayer, deleteZone, layerThumb, moveLayer } from '../state/actions';
 import { useStore } from '../state/store';
 import { Icon, IconButton } from './controls';
 
@@ -80,6 +80,9 @@ function Motions() {
                 <span className="item-name">{z.name}</span>
                 <span className="item-kind">{ZONE_INFO[z.type].label}</span>
               </button>
+              <span className="item-actions">
+                <IconButton small icon="trash" label={`Delete ${z.name}`} hint={`Delete ${z.name} (Delete key)`} onClick={() => deleteZone(z.id)} />
+              </span>
               <IconButton small icon={z.enabled ? 'eye' : 'eyeOff'} label={z.enabled ? 'Switch off' : 'Switch on'} onClick={() => editZone(z.id, (x) => { x.enabled = !x.enabled; })} />
             </li>
           ))}

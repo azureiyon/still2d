@@ -41,6 +41,7 @@ export function TopBar() {
         {mode === 'motion' && <IconButton icon="mesh" label="Show the bending mesh" active={wire} onClick={() => set({ wire: !wire })} />}
         <IconButton icon="panels" label="Show or hide panels" hint="Panels (Tab)" active={panels} onClick={() => set({ panels: !panels })} />
         <span className="divider" />
+        <button className="btn" onClick={() => set({ newOpen: true })} title="Put this animation aside and start a new one"><Icon name="file" size={15} /> New</button>
         <button className="btn" onClick={async () => importFiles(await pickFiles(`.stillwave,${ARTWORK_TYPES}`))}><Icon name="open" size={15} /> Open</button>
         <button className="btn" onClick={() => saveProject()} title="Save project (Ctrl+S)"><Icon name="save" size={15} /> Save</button>
 

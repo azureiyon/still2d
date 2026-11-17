@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { isPaintZone, SWAY_FEELS, ZONE_INFO, type Doc, type EyeZone, type Layer, type LidPose, type Zone } from '../engine/types';
+import { isPaintZone, SWAY_FEELS, ZONE_INFO, type Doc, type EyeZone, type Layer, type LidPose, type SwayZone, type Zone } from '../engine/types';
 import { eyeSide } from '../engine/rig';
-import { clearEyePaint, deleteMood, deleteZone, focusEye, liftZone, mirrorEyeZone, resetEyeCurves, restoreLayer, setEyeEdit } from '../state/actions';
+import { addPathPoint, clearEyePaint, deleteMood, followPaint, removePathPoint, reversePath, straightenPath, deleteZone, focusEye, liftZone, mirrorEyeZone, resetEyeCurves, restoreLayer, setEyeEdit } from '../state/actions';
 import { CURVE_COLOR } from './curveColors';
 import { ExportPanel } from './ExportPanel';
 import { useStore } from '../state/store';
@@ -58,6 +58,27 @@ function LayerPicker({ zone, doc }: { zone: Zone; doc: Doc }) {
   );
 }
 
+/** The strand's path: root, points along it, tip. The strand bends along this line. */
+function SwayPath({ zone }: { zone: SwayZone }) {
+  const pathSel = useStore((s) => s.pathSel);
+  const sel = pathSel !== null && pathSel < zone.path.length ? pathSel : null;
+  return (
+    <Section title="Path" aside={<span className="count">{zone.path.length} point{zone.path.length === 1 ? '' : 's'}</span>}>
+      <p className="note">The strand bends along this line, from the root (ring) to the tip (diamond). Add points so it follows a curl, then drag them onto the middle of the strand.</p>
+      <div className="row">
+        <button className="btn btn-small" onClick={() => followPaint(zone.id)} disabled={!zone.mask || zone.whole} title="Lay the path along the middle of the painted strand, out to its far end">Follow the paint</button>
+        <button className="btn btn-small" onClick={() => addPathPoint(zone.id)} disabled={zone.path.length >= 8} title="Add a point half way along the longest stretch (or double-click the line)">Add point</button>
+      </div>
+      <div className="row">
+        <button className="btn btn-small" onClick={() => sel !== null && removePathPoint(zone.id, sel)} disabled={sel === null} title="Remove the selected point (Delete key, or double-click it)">Remove point</button>
+        <button className="btn btn-small" onClick={() => straightenPath(zone.id)} disabled={!zone.path.length} title="Remove every point between root and tip">Straighten</button>
+        <button className="btn btn-small" onClick={() => reversePath(zone.id)} title="Swap the root and the tip">Flip root and tip</button>
+      </div>
+      <p className="note">{sel !== null ? `Point ${sel + 1} selected: drag it, or nudge with the arrow keys (Shift for bigger steps).` : 'Click a point to select it.'}</p>
+    </Section>
+  );
+}
+
 function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
   const editZone = useStore((s) => s.editZone);
   const set = useStore((s) => s.set);
@@ -102,7 +123,7 @@ function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
             <ZoneSlider zone={zone} prop="breeze" label="Breeze" reset={0.45} hint="Gentle movement even when the head is still" />
             <ZoneSlider zone={zone} prop="ripple" label="Ripple" reset={0.5} hint="How much the tip trails behind the root" />
           </Section>
-          <p className="note">The ring marks the root, which stays put. The diamond marks the tip. Double-click the dotted line to add a point, so the spine follows a curl.</p>
+          <SwayPath zone={zone} />
           {!zone.whole && zone.mask && (
             <Section title="Separate it from the picture">
               <button className="btn" onClick={() => liftZone(zone.id)}>Lift onto its own layer</button>

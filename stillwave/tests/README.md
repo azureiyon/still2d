@@ -11,6 +11,7 @@ using real pointer and keyboard input. Run them from the `stillwave/` folder; ou
 | `node tests/hair.cjs` | Renders one strong hair pose with each sway style, hold-still and lifting, and measures how much the strand's mesh stretches. |
 | `node tests/precise.cjs` | Precise eye editing through the interface: conversion, node drag, smooth and Alt-broken tangents, arrow nudging and undo, adding and removing nodes, closure presets, crease follow, Simple/Precise round trip, mirroring, save and reopen. |
 | `node tests/eye-fidelity.cjs` | Offscreen renders comparing a simple eye with its precise conversion at five closures, plus crease follow. |
+| `node tests/editing.cjs` | Hair path editing (follow the paint, add, drag, nudge, delete, straighten, flip, smoothness), deleting a motion and undo, the eyedropper and recent colours, and New with cancel, discard and recovery. |
 | `node tests/fold.cjs` | Folded triangles at extreme poses with fold protection off and on, plus how much motion is kept and the cost per frame. |
 | `STILLWAVE_REF_IMAGE=path node tests/real-illustration.cjs` | Blink on a real illustration, both skin modes, plus hand refinement with the Keep and clone brushes. |
 

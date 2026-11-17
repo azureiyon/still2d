@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { importFiles } from './io/import';
 import { saveProject, writeSession } from './io/project';
 import { useStore } from './state/store';
-import { deleteZone } from './state/actions';
+import { deleteZone, removePathPoint } from './state/actions';
 import { isPaintZone } from './engine/types';
 import { MoodDock, ToolPill } from './ui/Dock';
 import { Inspector } from './ui/Inspector';
+import { NewDialog } from './ui/NewDialog';
 import { LeftPanel } from './ui/LeftPanel';
 import { Stage } from './ui/Stage';
 import { TopBar } from './ui/TopBar';
@@ -39,8 +40,13 @@ function useShortcuts() {
       if (k === 'c' && (onLayer || (onEye && s.eyeLayer === 'skin'))) s.set({ tool: 'clone', playing: false });
       if (k === '[') s.set({ brush: { ...s.brush, size: Math.max(2, s.brush.size * 0.85) } });
       if (k === ']') s.set({ brush: { ...s.brush, size: s.brush.size * 1.18 } });
-      if ((k === 'delete' || k === 'backspace') && zone && !s.playing) deleteZone(zone.id);
-      if (k === 'escape') s.set(s.tool !== 'move' ? { tool: 'move' } : { zoneId: null });
+      if ((k === 'delete' || k === 'backspace') && zone && !s.playing) {
+        // a selected path point goes first; the whole motion only when nothing smaller is selected
+        if (zone.type === 'sway' && s.pathSel !== null && zone.path[s.pathSel]) removePathPoint(zone.id, s.pathSel);
+        else deleteZone(zone.id);
+      }
+      if (k === 'i' && (onLayer || (onEye && s.eyeLayer === 'skin'))) s.set({ tool: 'pick', pickReturn: s.tool === 'pick' || s.tool === 'move' || s.tool === 'erase' ? 'brush' : s.tool, playing: false });
+      if (k === 'escape') s.set(s.tool !== 'move' ? { tool: 'move' } : s.pathSel !== null || s.nodeSel ? { pathSel: null, nodeSel: null } : { zoneId: null });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -89,6 +95,7 @@ export function App() {
           <MoodDock />
         </>
       )}
+      <NewDialog />
       {dropping && <div className="drop-veil"><span>Drop to add artwork</span></div>}
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => <div key={t.id} className={`toast toast-${t.tone}`}>{t.text}</div>)}

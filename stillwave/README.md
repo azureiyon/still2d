@@ -21,8 +21,8 @@ Nothing leaves your machine. There is no server, account or API.
 
 1. **Artwork**: drop in a PNG, several PNGs or a layered PSD. Move, scale, rotate,
    reorder and set a layer near or far for parallax. Retouch any layer with the
-   brush, clone tool and eraser; the original pixels are always kept and can be
-   restored. Add an empty **repair layer** to paint over problems without
+   brush, clone tool, eraser and eyedropper (`I`, with a magnifier and recent
+   colours); the original pixels are always kept and can be restored. Add an empty **repair layer** to paint over problems without
    touching the artwork. Paint modes: *Over*, *Behind* (fills only empty pixels,
    for underpainting) and *Inside* (recolours only existing pixels).
 2. **Motion**: add motions and place them on the picture.
@@ -37,7 +37,10 @@ Nothing leaves your machine. There is no server, account or API.
      **Keep** (hair or detail the blink must never touch). Mirror to the other eye.
    - **Sway**: brush over a lock from root to tip. Choose **Swing** (turns as one
      piece), **Bend** (curls toward the tip) or **Flutter** (bend plus a quick,
-     light tip). Double-click the dotted spine to add points so it follows a curl.
+     light tip). The strand bends along a smooth path from root to tip: use
+     **Follow the paint** to lay it down the middle of the painted strand, or
+     add, drag, nudge (arrow keys) and remove points yourself in the Path
+     section (double-click the line adds a point, Delete removes the selected one).
      **Lift onto its own layer** cuts the lock out, fills the gap behind it with
      a guess, and lets it move over the picture instead of dragging it.
    - **Head**, **Breath**, **Mouth** as before, and **Hold still**: paint anything
@@ -54,12 +57,16 @@ Nothing leaves your machine. There is no server, account or API.
    HTML file that plays live). Pointer-following and the microphone are tucked
    under *Live preview extras*.
 
-Everything is undoable, including brush strokes, eye paint and lifting. The last
+Everything is undoable, including brush strokes, eye paint, lifting and
+deleting a motion (trash button on each row, or Delete). **New** puts the
+current animation aside after asking whether to save it; until you start on
+something else it can be picked up again from the start screen. The last
 session is autosaved in the browser; **Save** writes a `.stillwave` file that
 holds every image, mask and setting. Projects from the first build still open.
 
 Shortcuts: `Space` play/pause, `V` select, `B` brush, `E` eraser, `C` clone
-(Alt-click sets the source; with the brush, Alt-click picks a colour), `[` `]`
+(Alt-click sets the source), `I` eyedropper (Alt-click while painting does the
+same), arrow keys nudge a selected point, `[` `]`
 brush size, `1`–`9` expressions, `F` fit view, `Tab` panels, `Ctrl+Z` /
 `Ctrl+Shift+Z`, `Ctrl+S`, `Ctrl+E` export. Wheel zooms; middle-drag or
 Space-drag pans.

@@ -320,13 +320,92 @@ export function mirrorEye(z: EyeZone, axisX: number): Pick<EyeZone, 'a' | 'b' | 
 
 // ---- sway spine: root, optional middle points, tip
 
-export interface Spine { pts: Vec[]; acc: number[]; total: number }
+export interface Spine { pts: Vec[]; acc: number[]; total: number; ctrl: Vec[] }
+const spineCache = new WeakMap<SwayZone, Spine>();
 
+/**
+ * The strand's spine: a smooth curve (centripetal Catmull-Rom) through the
+ * root, any path points and the tip, sampled finely. Smooth, so a path point
+ * bends the strand gently instead of putting a kink in it.
+ */
 export function swaySpine(z: SwayZone): Spine {
-  const pts = [z.anchor, ...z.path, z.tip];
+  const hit = spineCache.get(z);
+  if (hit) return hit;
+  const ctrl = [z.anchor, ...(z.path ?? []), z.tip];
+  let pts: Vec[];
+  if (ctrl.length <= 2) pts = ctrl;
+  else {
+    pts = [ctrl[0]];
+    const ext = [
+      { x: 2 * ctrl[0].x - ctrl[1].x, y: 2 * ctrl[0].y - ctrl[1].y },
+      ...ctrl,
+      { x: 2 * ctrl[ctrl.length - 1].x - ctrl[ctrl.length - 2].x, y: 2 * ctrl[ctrl.length - 1].y - ctrl[ctrl.length - 2].y },
+    ];
+    for (let i = 1; i < ext.length - 2; i++) {
+      const [p0, p1, p2, p3] = [ext[i - 1], ext[i], ext[i + 1], ext[i + 2]];
+      const knot = (a: Vec, b: Vec) => Math.max(1e-3, Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)));
+      const t0 = 0, t1 = t0 + knot(p0, p1), t2 = t1 + knot(p1, p2), t3 = t2 + knot(p2, p3);
+      const lerp = (a: Vec, b: Vec, ta: number, tb: number, t: number) => ({ x: ((tb - t) * a.x + (t - ta) * b.x) / (tb - ta), y: ((tb - t) * a.y + (t - ta) * b.y) / (tb - ta) });
+      for (let k = 1; k <= 12; k++) {
+        const t = t1 + ((t2 - t1) * k) / 12;
+        const A1 = lerp(p0, p1, t0, t1, t), A2 = lerp(p1, p2, t1, t2, t), A3 = lerp(p2, p3, t2, t3, t);
+        const B1 = lerp(A1, A2, t0, t2, t), B2 = lerp(A2, A3, t1, t3, t);
+        pts.push(lerp(B1, B2, t1, t2, t));
+      }
+    }
+  }
   const acc = [0];
   for (let i = 1; i < pts.length; i++) acc.push(acc[i - 1] + Math.max(0.001, Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y)));
-  return { pts, acc, total: acc[acc.length - 1] };
+  const sp = { pts, acc, total: acc[acc.length - 1], ctrl };
+  spineCache.set(z, sp);
+  return sp;
+}
+
+/**
+ * Trace a path through a painted strand: walk outward from the root inside
+ * the paint, and take the middle of the paint at even steps along the way.
+ * Returns the tip (the farthest painted point) and `count` points between.
+ */
+export function traceStrand(alpha: Uint8ClampedArray, w: number, h: number, docW: number, docH: number, root: Vec, count = 4): { path: Vec[]; tip: Vec } | null {
+  const kx = w / docW, ky = h / docH;
+  const inside = (i: number) => alpha[i] > 76;
+  // nearest painted pixel to the root
+  const rx = Math.round(root.x * kx), ry = Math.round(root.y * ky);
+  let seed = -1, best = Infinity;
+  for (let y = Math.max(0, ry - 40); y < Math.min(h, ry + 40); y++) for (let x = Math.max(0, rx - 40); x < Math.min(w, rx + 40); x++) {
+    const i = y * w + x;
+    if (!inside(i)) continue;
+    const d = (x - rx) ** 2 + (y - ry) ** 2;
+    if (d < best) { best = d; seed = i; }
+  }
+  if (seed < 0) return null;
+  const dist = new Int32Array(w * h).fill(-1);
+  const q = new Int32Array(w * h);
+  let head = 0, tail = 0, far = seed;
+  dist[seed] = 0; q[tail++] = seed;
+  while (head < tail) {
+    const i = q[head++], x = i % w;
+    if (dist[i] > dist[far]) far = i;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+      if (j < 0 || j >= w * h || dist[j] >= 0 || !inside(j)) continue;
+      dist[j] = dist[i] + 1; q[tail++] = j;
+    }
+  }
+  const dmax = dist[far];
+  if (dmax < 6) return null;
+  // centre of the paint in thin bands of distance from the root
+  const bands = count + 1;
+  const sx = new Float64Array(bands + 1), sy = new Float64Array(bands + 1), n = new Float64Array(bands + 1);
+  for (let k = 0; k < tail; k++) {
+    const i = q[k], f = dist[i] / dmax;
+    const b = Math.round(f * bands);
+    if (Math.abs(f * bands - b) > 0.18 || b < 1) continue;
+    sx[b] += (i % w) + 0.5; sy[b] += Math.floor(i / w) + 0.5; n[b]++;
+  }
+  const path: Vec[] = [];
+  for (let b = 1; b < bands; b++) if (n[b]) path.push({ x: sx[b] / n[b] / kx, y: sy[b] / n[b] / ky });
+  const tip = n[bands] ? { x: sx[bands] / n[bands] / kx, y: sy[bands] / n[bands] / ky } : { x: ((far % w) + 0.5) / kx, y: (Math.floor(far / w) + 0.5) / ky };
+  return { path, tip };
 }
 
 export function spineAt(s: Spine, at: number): Vec {
