@@ -102,6 +102,7 @@ export interface EyeZone extends ZoneBase {
   edit: 'simple' | 'precise'; // which set of controls shapes this eye
   curves: EyeCurves | null; // the precise shape, kept even while editing simply
   follow: number; // how far the top of the carried band (the crease) travels with the lashes, 0..1
+  land: number; // px the closed lashes travel past the waterline, over the lower lid line
 }
 
 export interface MouthZone extends ZoneBase {
@@ -271,7 +272,7 @@ export function makeZone(type: ZoneType, doc: Doc, at: Vec, index: number): Zone
         a: { x: at.x - u * 0.045, y: at.y }, b: { x: at.x + u * 0.045, y: at.y },
         upT: 0, upH: u * 0.03, loT: 0, loH: u * 0.018, upRound: 0.8, loRound: 0.9,
         band: u * 0.008, loBand: u * 0.002, skin: u * 0.008, meet: 0.08, gaze: 0.6, pair: null,
-        upPts: [], loPts: [], fill: 'soft', roll: 0.4, box: null, paint: null, ctl: null, edit: 'simple', curves: null, follow: 1,
+        upPts: [], loPts: [], fill: 'soft', roll: 0.4, box: null, paint: null, ctl: null, edit: 'simple', curves: null, follow: 1, land: 1.5,
       };
     case 'mouth':
       return {
@@ -310,6 +311,7 @@ export function normalizeDoc(doc: Doc): Doc {
       z.edit ??= 'simple';
       z.curves ??= null;
       z.follow ??= 1;
+      z.land ??= 0; // older projects closed exactly on the waterline
     } else if (z.type === 'mouth') {
       z.bow ??= 0;
     }

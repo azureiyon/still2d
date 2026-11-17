@@ -231,6 +231,27 @@ island scaling. At deliberately extreme poses (flattened sample, hair tip turned
 It costs a few milliseconds on frames that actually fold, and nothing extra on
 ordinary poses.
 
+## Art with heavy upper and lower lashes
+
+Tested on an illustration with tall, spiky upper lashes, a dark lower lid line
+and spiky lower lashes (the artist's own image, not committed here). What it
+needs:
+
+- **Lower lid rise 0%.** Nothing below the lower contour moves, so the lower
+  lid line and lower lashes stay exactly as drawn.
+- **The lower curve on the waterline**, the bottom edge of the eye white,
+  and a little **Lid overlap** (new, 1.5 px by default) so the closed lashes
+  rest on the lower lid line instead of leaving a sliver of white.
+- **A carried band tall enough for the whole lash, tips included** (Precise
+  mode), with **Blend skin**. *Pull skin down* stretches whatever sits above
+  the lashes, which on this art is the lash tips: that is where vertical
+  streaks come from.
+- **Keep** marks on fringe strands that cross the eye.
+
+The blended fill used to take its reference skin colour from just below the
+waterline, which on this art is the lower lid line and lashes. It now samples
+three depths and gives the darkest samples (lines and lashes) no weight.
+
 ## Where both still fall short
 
 - Neither knows what is actually behind an occluding shape. Both guess (mine

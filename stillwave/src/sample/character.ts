@@ -238,7 +238,7 @@ function eyeZones(layers: 'all' | string[] = 'all'): EyeZone[] {
     a: { x: e.cx - EYE.hw, y: EYE.y }, b: { x: e.cx + EYE.hw, y: EYE.y },
     upT: EYE.upT * e.flip, upH: EYE.upH, loT: EYE.loT, loH: EYE.loH, upRound: EYE.upRound, loRound: EYE.loRound,
     band: EYE.band + 1, loBand: 2, skin: 7, meet: 0.1, gaze: 0.6, pair: ids[1 - i],
-    upPts: [], loPts: [], fill: 'soft', roll: 0.35, box: null, paint: null, ctl: null, edit: 'simple', curves: null, follow: 1,
+    upPts: [], loPts: [], fill: 'soft', roll: 0.35, box: null, paint: null, ctl: null, edit: 'simple', curves: null, follow: 1, land: 1.5,
   }));
 }
 

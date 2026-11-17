@@ -221,6 +221,7 @@ function EyeInspector({ zone, doc }: { zone: EyeZone; doc: Doc }) {
         <ZoneSlider zone={zone} prop="follow" label="Crease follow" reset={1} hint="How far the top of the carried band (the crease) moves with the lashes. Lower values keep the crease higher as the eye closes." />
         <ZoneSlider zone={zone} prop="roll" label="Lash roll" reset={0.4} hint="Lashes thin out as the lid closes, as if tipping away from you" />
         <ZoneSlider zone={zone} prop="loBand" label="Lower lash" min={0} max={u * 0.02} format={px} />
+        <ZoneSlider zone={zone} prop="land" label="Lid overlap" min={0} max={u * 0.015} reset={1.5} format={px} hint="How far past the waterline the closed lashes land. A little overlap hides the last sliver of eye white; the lower lid line and lower lashes stay as drawn." />
         <ZoneSlider zone={zone} prop="meet" label="Lower lid rise" max={0.6} reset={0.08} hint="0% keeps the lower lid still and lets the upper lid do all the travelling" />
       </Section>
       {!precise && (

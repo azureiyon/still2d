@@ -50,7 +50,7 @@ vec4 eyePaint(int i,vec2 doc,float row){
   vec4 bx=uEyeF[i]; vec2 q=(doc-bx.xy)/bx.zw;
   if(q.x<0.||q.y<0.||q.x>1.||q.y>1.) return vec4(0.);
   q=clamp(q,vec2(.5/256.),vec2(1.-.5/256.));
-  return texture(uAtlas,vec2((uEyeB[i].w+q.x)/8.,(row+q.y)/2.));
+  return texture(uAtlas,vec2((uEyeB[i].z+q.x)/8.,(row+q.y)/2.));
 }
 
 // inverse of dest = (s + e*(s/B)^2)*r: where in the band a destination point came from
@@ -81,7 +81,9 @@ vec2 eyeWarp(vec2 p,int i){
   float hU=hTop-B-S;
   float C=mix(Lw,U,uEyeD[i].w)+uEyeD[i].z*.4*(max(hU,1.)+hL)*(1.-t*t);
   C=clamp(C,Lw,U);
-  float Uc=mix(U,C,uEyeD[i].x), Lc=mix(Lw,C,max(uEyeD[i].y,smoothstep(.6,1.,uEyeD[i].x)));
+  // the closed lashes land a little past the waterline, over the lower lid line
+  float land=uEyeB[i].w*(1.-t*t*t*t);
+  float Uc=mix(U,C-land,uEyeD[i].x), Lc=mix(Lw,C,max(uEyeD[i].y,smoothstep(.6,1.,uEyeD[i].x)));
   float shift=U-Uc, moved=smoothstep(0.,1.5,shift);
   float r=mix(1.,1.-.6*roll,uEyeD[i].x); // lashes foreshorten as the lid comes down
   // The carried band travels with the lashes. With follow below 1 its top (the
@@ -125,9 +127,24 @@ vec2 eyeWarp(vec2 p,int i){
     // The skin under the eye is rarely hidden, so it is the reference: samples
     // above the eye that look nothing like it (a fringe, a brow) are ignored.
     float clear=uTexel*4.;
-    vec4 below=vec4(0.);
-    for(int k=-2;k<=2;k++){ float tt=clamp(t+float(k)*.22,-.92,.92); below+=artSoft(mid+ex*(tt*hw)+n*(-lids(row,tt).y-B2-Smax-clear)); }
-    below/=5.;
+    // Below the eye: several depths, because the first skin under the waterline
+    // is often a dark lid line and lower lashes. The darkest samples (lines and
+    // lashes) get no say; skin is nearly always lighter than the ink around it.
+    vec4 bs[15]; float lmax=0.;
+    for(int k=0;k<5;k++){
+      float tt=clamp(t+float(k-2)*.22,-.92,.92); float base=-lids(row,tt).y-B2-clear;
+      for(int j=0;j<3;j++){
+        vec4 c=artSoft(mid+ex*(tt*hw)+n*(base-Smax*(1.+float(j)*1.2)));
+        bs[k*3+j]=c; lmax=max(lmax,dot(c.rgb,vec3(.3,.59,.11))/max(c.a,.001));
+      }
+    }
+    vec4 below=vec4(0.); float bw=0.;
+    for(int k=0;k<15;k++){
+      float lum=dot(bs[k].rgb,vec3(.3,.59,.11))/max(bs[k].a,.001);
+      float w=smoothstep(.55,.9,lum/max(lmax,.001))+.001;
+      below+=bs[k]*w; bw+=w;
+    }
+    below/=bw;
     // compare by hue, not brightness: skin in shadow is still skin, a blue fringe is not
     vec3 ref=below.rgb/max(below.r+below.g+below.b,.001);
     vec4 above=vec4(0.); float wsum=0.;
@@ -926,7 +943,7 @@ export class Renderer {
         const hasPaint = (z.paint || opts.livePaint?.has(`${z.id}:paint`)) && this.paintTarget(doc, z) === l.id;
         const hasMarks = z.ctl || opts.livePaint?.has(`${z.id}:ctl`);
         A.set([p.x, p.y, q.x, q.y], ne * 4);
-        B.set([lut.hTop, lut.hL, row, row], ne * 4);
+        B.set([lut.hTop, lut.hL, row, z.land ?? 0], ne * 4);
         C.set([z.follow ?? 1, z.skin, z.fill === 'soft' ? 1 : 0, z.roll], ne * 4);
         D.set([e.upper, e.lower, e.arc, z.meet], ne * 4);
         E.set([e.gx, e.gy, z.loBand, (hasPaint ? 1 : 0) + (hasMarks ? 2 : 0)], ne * 4);
