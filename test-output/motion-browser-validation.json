@@ -1,0 +1,18 @@
+{
+  "rootPlacementViaPointer": true,
+  "rootUndoRedo": true,
+  "rootDoesNotPaintMask": true,
+  "rootSaveReopen": true,
+  "realIllustration": {
+    "maxRootDrift": 0,
+    "rootSamples": 3186,
+    "tipMeanMotionPx": 3.450936194724852,
+    "allFramesSafe": true,
+    "fallbacks": 0
+  },
+  "headlessPreview": {
+    "fps": 75.10917030567686,
+    "p95FrameMs": 13.400000000000546
+  },
+  "pageErrors": []
+}

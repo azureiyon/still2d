@@ -1,0 +1,247 @@
+{
+  "cases": [
+    {
+      "preset": "swing",
+      "anchor": "none",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 6.779815673828125,
+      "maxAcceleration": 1.08465576171875,
+      "microJump": 0.0008087158203125,
+      "minVisibleAreaRatio": 0.8749907652654741,
+      "scaleRange": [
+        1,
+        1
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "swing",
+      "anchor": "root-soft",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 6.779815673828125,
+      "maxAcceleration": 1.08465576171875,
+      "microJump": 0.0008087158203125,
+      "minVisibleAreaRatio": 0.8614614433303145,
+      "scaleRange": [
+        1,
+        1
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "swing",
+      "anchor": "tip",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 0.163177490234375,
+      "maxAcceleration": 0.0261077880859375,
+      "microJump": 0.00006103515625,
+      "minVisibleAreaRatio": 0.46485869277183356,
+      "scaleRange": [
+        0.02406788041850414,
+        0.02406788041850414
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "swing",
+      "anchor": "middle",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 0.1962432861328125,
+      "maxAcceleration": 0.0313873291015625,
+      "microJump": 0.00006103515625,
+      "minVisibleAreaRatio": 0.5233703209166806,
+      "scaleRange": [
+        0.028944650702135095,
+        0.028944650702135095
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "swing",
+      "anchor": "outside",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 6.779815673828125,
+      "maxAcceleration": 1.08465576171875,
+      "microJump": 0.0008087158203125,
+      "minVisibleAreaRatio": 0.8749907652654741,
+      "scaleRange": [
+        1,
+        1
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "bend",
+      "anchor": "none",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 7.351654052734375,
+      "maxAcceleration": 1.200653076171875,
+      "microJump": 0.000885009765625,
+      "minVisibleAreaRatio": 0.7490065232555533,
+      "scaleRange": [
+        0.8491669093985864,
+        0.8491669093985864
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "bend",
+      "anchor": "root-soft",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 7.351654052734375,
+      "maxAcceleration": 1.200653076171875,
+      "microJump": 0.000885009765625,
+      "minVisibleAreaRatio": 0.7490065232555533,
+      "scaleRange": [
+        0.8491669093985864,
+        0.8491669093985864
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "bend",
+      "anchor": "tip",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 0.13427734375,
+      "maxAcceleration": 0.021942138671875,
+      "microJump": 0.00006103515625,
+      "minVisibleAreaRatio": 0.46379763589165196,
+      "scaleRange": [
+        0.015510327518763266,
+        0.015510327518763266
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "bend",
+      "anchor": "middle",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 0.180145263671875,
+      "maxAcceleration": 0.029449462890625,
+      "microJump": 0.00006103515625,
+      "minVisibleAreaRatio": 0.4998850174862573,
+      "scaleRange": [
+        0.020807997603326255,
+        0.020807997603326255
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "bend",
+      "anchor": "outside",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 7.351654052734375,
+      "maxAcceleration": 1.200653076171875,
+      "microJump": 0.000885009765625,
+      "minVisibleAreaRatio": 0.7490065232555533,
+      "scaleRange": [
+        0.8491669093985864,
+        0.8491669093985864
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "flutter",
+      "anchor": "none",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 9.12896728515625,
+      "maxAcceleration": 1.5406494140625,
+      "microJump": 0.0010986328125,
+      "minVisibleAreaRatio": 0.7786721531755739,
+      "scaleRange": [
+        0.9062140860942374,
+        0.9062140860942374
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "flutter",
+      "anchor": "root-soft",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 9.12896728515625,
+      "maxAcceleration": 1.5406494140625,
+      "microJump": 0.0010986328125,
+      "minVisibleAreaRatio": 0.7786721531755739,
+      "scaleRange": [
+        0.9062140860942374,
+        0.9062140860942374
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "flutter",
+      "anchor": "tip",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 0.157989501953125,
+      "maxAcceleration": 0.026611328125,
+      "microJump": 0.00006103515625,
+      "minVisibleAreaRatio": 0.4639861515635074,
+      "scaleRange": [
+        0.015682346764855415,
+        0.015682346764855415
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "flutter",
+      "anchor": "middle",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 0.21417236328125,
+      "maxAcceleration": 0.03607177734375,
+      "microJump": 0.00006103515625,
+      "minVisibleAreaRatio": 0.5015857817255783,
+      "scaleRange": [
+        0.021260334511418576,
+        0.021260334511418576
+      ],
+      "loopError": 0,
+      "seekError": 0
+    },
+    {
+      "preset": "flutter",
+      "anchor": "outside",
+      "seconds": 30,
+      "frames": 1801,
+      "maxStep": 9.12896728515625,
+      "maxAcceleration": 1.5406494140625,
+      "microJump": 0.0010986328125,
+      "minVisibleAreaRatio": 0.7786721531755739,
+      "scaleRange": [
+        0.9062140860942374,
+        0.9062140860942374
+      ],
+      "loopError": 0,
+      "seekError": 0
+    }
+  ],
+  "totalSimulatedSeconds": 450,
+  "frameRateIndependentSeeks": true,
+  "pageErrors": []
+}

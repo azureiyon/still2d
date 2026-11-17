@@ -1,0 +1,19 @@
+{
+  "studies": [
+    {
+      "style": "detailed",
+      "minArea": 11.924693897366524,
+      "guard": 1,
+      "gl": 0
+    },
+    {
+      "style": "cel",
+      "minArea": 6.771037697792053,
+      "guard": 1,
+      "gl": 0
+    }
+  ],
+  "manualMatteAndBacking": true,
+  "movie": "studio-swing-preview.webm",
+  "errors": []
+}

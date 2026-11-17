@@ -1,0 +1,34 @@
+{
+  "initial": {
+    "w": 720,
+    "h": 956,
+    "vertices": 15805,
+    "fps": "72 fps · local guard <1% of vertices",
+    "regions": 2
+  },
+  "deformation": {
+    "moving": 7314,
+    "pinned": 398,
+    "rest": 6428,
+    "differs": true,
+    "guard": 1
+  },
+  "paintUndoRedo": true,
+  "erase": true,
+  "anchorPaintAndClear": true,
+  "zoomPan": true,
+  "resetRestPose": true,
+  "projectRoundTrip": "identical settings, source image, and mask/anchor alpha hashes",
+  "renderedPixels": 364180,
+  "imageImport": true,
+  "transparentPngImport": true,
+  "transparentPixels": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "invalidProjectPreservesState": true,
+  "pageErrors": []
+}
+All 4 presets: no folded triangles. Minimum signed double-area: 22.432460928801447

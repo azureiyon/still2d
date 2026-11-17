@@ -1,0 +1,50 @@
+{
+  "heldPoseDuringHairPlayback": true,
+  "twoEyeClock": [
+    [
+      0.15625000000000017,
+      0.15625000000000017
+    ],
+    [
+      0.5000000000000004,
+      0.5000000000000004
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      0.5829903978052109,
+      0.5829903978052109
+    ],
+    [
+      0,
+      0
+    ],
+    [
+      0,
+      0
+    ],
+    [
+      0.5000000000000004,
+      0.5000000000000004
+    ]
+  ],
+  "deleteUndoKeepsOtherEyeAndClock": true,
+  "skinAboveFirst": true,
+  "originalEyedropper": {
+    "expected": "#e4cfc6",
+    "actual": "#e4cfc6",
+    "tool": "repair-paint"
+  },
+  "layerOpacityNonDestructive": true,
+  "opacityUndoRedo": true,
+  "backingPaintDoesNotEditHair": true,
+  "newFieldsRoundTrip": true,
+  "actualTriangleOverlay": true,
+  "pageErrors": []
+}

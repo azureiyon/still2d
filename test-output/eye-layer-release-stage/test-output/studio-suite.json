@@ -1,0 +1,57 @@
+[
+  {
+    "file": "test-engine.cjs",
+    "passed": true,
+    "seconds": 0.452
+  },
+  {
+    "file": "test.cjs",
+    "passed": true,
+    "seconds": 4.322
+  },
+  {
+    "file": "test-visibility.cjs",
+    "passed": true,
+    "seconds": 3.68
+  },
+  {
+    "file": "test-motion-browser.cjs",
+    "passed": true,
+    "seconds": 6.469
+  },
+  {
+    "file": "test-blink.cjs",
+    "passed": true,
+    "seconds": 5.296
+  },
+  {
+    "file": "test-blink-quality.cjs",
+    "passed": true,
+    "seconds": 4.683
+  },
+  {
+    "file": "test-blink-refinement.cjs",
+    "passed": true,
+    "seconds": 15.503
+  },
+  {
+    "file": "test-two-eyes.cjs",
+    "passed": true,
+    "seconds": 11.944
+  },
+  {
+    "file": "test-studio.cjs",
+    "passed": true,
+    "seconds": 6.897
+  },
+  {
+    "file": "test-studio-controls.cjs",
+    "passed": true,
+    "seconds": 3.231
+  },
+  {
+    "file": "test-studio-visual.cjs",
+    "passed": true,
+    "seconds": 8.534
+  }
+]

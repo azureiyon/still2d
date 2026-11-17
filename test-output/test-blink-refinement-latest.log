@@ -1,0 +1,55 @@
+{
+  "study": [
+    {
+      "style": "detailed",
+      "zeroErrors": 0,
+      "protectedErrors": 0,
+      "outsideErrors": 0,
+      "alphaErrors": 0,
+      "protectedCount": 78955,
+      "outsideCount": 1126885,
+      "closedIrisSamples": 3444,
+      "closedIrisErrors": 0,
+      "valid": true,
+      "glError": 0,
+      "creaseChangesActualPixels": true,
+      "reconstructionMethodsRendered": [
+        "texture",
+        "soft",
+        "blend"
+      ]
+    },
+    {
+      "style": "cel",
+      "zeroErrors": 0,
+      "protectedErrors": 0,
+      "outsideErrors": 0,
+      "alphaErrors": 0,
+      "protectedCount": 154595,
+      "outsideCount": 1471810,
+      "closedIrisSamples": 14519,
+      "closedIrisErrors": 0,
+      "valid": true,
+      "glError": 0,
+      "creaseChangesActualPixels": true,
+      "reconstructionMethodsRendered": [
+        "texture",
+        "soft",
+        "blend"
+      ]
+    }
+  ],
+  "keyboardUndoFromSelectAndRange": true,
+  "singleActionDragAndStrokes": true,
+  "canceledDragHasNoHistory": true,
+  "sourceColorPicker": true,
+  "clearTargetUndo": true,
+  "paintTargets": [
+    "lashes",
+    "area",
+    "protect",
+    "repair"
+  ],
+  "projectRoundTrip": true,
+  "pageErrors": []
+}

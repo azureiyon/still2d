@@ -1,0 +1,19 @@
+{
+  "packagedLaunch": true,
+  "advancedProjectLoad": true,
+  "hair": {
+    "ready": true,
+    "gl": 0,
+    "guard": 1
+  },
+  "saveReopen": true,
+  "sourceImmutable": true,
+  "twoEyeHalfClosure": true,
+  "movie": {
+    "w": 1084,
+    "h": 730,
+    "played": true
+  },
+  "noNetworkRequests": true,
+  "pageErrors": []
+}

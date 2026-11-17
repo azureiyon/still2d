@@ -1,0 +1,297 @@
+[
+  {
+    "file": "app.js",
+    "bytes": 32838,
+    "sha256": "857435C7DA39287E2D964C931161F4943800B92A00D0754864B30A87145303CF"
+  },
+  {
+    "file": "artwork.js",
+    "bytes": 14959,
+    "sha256": "15AB1EAC903F6757E761551AAE8A581A6D0C8F33949649676E9CDE17C9147FCE"
+  },
+  {
+    "file": "BLINK_IMPLEMENTATION_PLAN.md",
+    "bytes": 16827,
+    "sha256": "6ECECA3C3FB9DBABF99CF8A423CAB4CCEB61B22C6582774B5D7B6BD089CDF48E"
+  },
+  {
+    "file": "BLINK_MILESTONE.md",
+    "bytes": 6084,
+    "sha256": "EBE341AF057FFDFB09A3C9199D32A99F75539763464682F33E85F60FAC25F0FC"
+  },
+  {
+    "file": "BLINK_QUALITY.md",
+    "bytes": 8364,
+    "sha256": "21433900871028B94A9C29771F8C66C1336804AD07CD432060870DCEDFBEA87E"
+  },
+  {
+    "file": "BLINK_REFINEMENT.md",
+    "bytes": 8833,
+    "sha256": "EA272CACE8ABD5B4DDC811353F4A9D13BAE2FAE3AEFDC14D767C7177C16DCAC6"
+  },
+  {
+    "file": "BLINK_TWO_EYES.md",
+    "bytes": 6500,
+    "sha256": "B6A8B92436A9CF41E6D4B3103F7E66AC4C96B1190D795C5E80A17C7743D7A75B"
+  },
+  {
+    "file": "blink-cel-study.stillwave",
+    "bytes": 3579880,
+    "sha256": "FC27840D2B57BF54CD20BAAD2A84A7FBD540277EC2CC6D2BE18A429696CE9DF6"
+  },
+  {
+    "file": "blink-study.stillwave",
+    "bytes": 1026784,
+    "sha256": "EC5E287EA24627E23321EFB6311A831C1ABAE81757E6DE572418BD7EC54A66ED"
+  },
+  {
+    "file": "blink-two-eye-study.stillwave",
+    "bytes": 1677468,
+    "sha256": "8522ED4636B60874E55612430A990A9C10B7A80D71F4EE9FC1A9AF4B3E7760D7"
+  },
+  {
+    "file": "blink.js",
+    "bytes": 25442,
+    "sha256": "436A1E2A1011E639691ED71198137A78163F6A18DC5224D9D09BA60134FD8D66"
+  },
+  {
+    "file": "curve-paths.js",
+    "bytes": 3463,
+    "sha256": "1B6D80D5CFA5D0519EBF80EAB3162F66F0179AC42DDDEB16AD06A0047CA7E25A"
+  },
+  {
+    "file": "demo-data.js",
+    "bytes": 303487,
+    "sha256": "406DEF1DE320E16C867E3677D7226880255B3625044571C44ED395DDB6B4B3A3"
+  },
+  {
+    "file": "demo.stillwave",
+    "bytes": 343255,
+    "sha256": "181830E31C8F93F8E50FF24EE826CA269021944CF32F1589A139EB6F530120D6"
+  },
+  {
+    "file": "engine.js",
+    "bytes": 12333,
+    "sha256": "5D0E0648DC52D60A15C512AE2414521B3645252A25B2D4860AC40BCE0AAAC50F"
+  },
+  {
+    "file": "eye-editor.js",
+    "bytes": 19071,
+    "sha256": "2ACD4484DED882B1825D79C95A33B60D5C99778333E91D4751138AA919A12C07"
+  },
+  {
+    "file": "eye-textures.js",
+    "bytes": 10353,
+    "sha256": "1E8A39AE098AE7AC9A299234435C63804F63353F412B40F50F876E83DA00785A"
+  },
+  {
+    "file": "eye-tools.js",
+    "bytes": 10524,
+    "sha256": "3A113A3FAFA10451D32871BEEDBC77DC73B728EDFAD81AAB8DA2C67CB0DE3E17"
+  },
+  {
+    "file": "hair-motion.js",
+    "bytes": 3615,
+    "sha256": "AA43BB8EEFEFD6C28D42AA8D34EE900F113B1AF1800496E5B9C9EC9830D26B98"
+  },
+  {
+    "file": "hair-study.stillwave",
+    "bytes": 347727,
+    "sha256": "B5CFE9C70619386B12685C5A0B7D4B546661C2301855C20A2B2A606D93B51427"
+  },
+  {
+    "file": "index.html",
+    "bytes": 12902,
+    "sha256": "F0A12557CC0BA28DEBE73E1FEBDD532CFA92B47DA838A14E7B64F8A595BACE4D"
+  },
+  {
+    "file": "inspect-eye-report.cjs",
+    "bytes": 1930,
+    "sha256": "B7EA3952DEF8B0DFB7B7AC6D69FB02067475CE690C50DFDCF549223E04C9417E"
+  },
+  {
+    "file": "inspect-refinement-video.cjs",
+    "bytes": 1516,
+    "sha256": "4B12123F50F488BD61F52815B7B335BE693988D2D68F757AE5423EDA9A258CD9"
+  },
+  {
+    "file": "Launch Stillwave.cmd",
+    "bytes": 37,
+    "sha256": "C369A077A253E26E89B85071FB50BB426AB159E49027572D5F1F18497386F266"
+  },
+  {
+    "file": "LAYER_ARCHITECTURE.md",
+    "bytes": 6111,
+    "sha256": "75CBB1AEE9653A9D4414CE26587C4293AE2005DF683802DDCC5CBA2FA7629DFF"
+  },
+  {
+    "file": "probe-reliability-after.cjs",
+    "bytes": 2014,
+    "sha256": "EE903AD2FAEB8DE3D94E62AB15296B31F3900638A6910851D4E61F2D1B462D11"
+  },
+  {
+    "file": "probe-reliability.cjs",
+    "bytes": 2013,
+    "sha256": "6C89929379401ECD719F3186A0F73057A4686C5AB2C8C36DD1E5431C7509BA38"
+  },
+  {
+    "file": "probe-ui.cjs",
+    "bytes": 1055,
+    "sha256": "311AB2C065C71897C0A9FE690F8896338E2F0BE5B7F8F193689C7A2F47E20EF8"
+  },
+  {
+    "file": "README.md",
+    "bytes": 11886,
+    "sha256": "961C8CA0122D904FF54CBC731A73D778F6D03BC8D40E80AED2BC307CEC62A76A"
+  },
+  {
+    "file": "refinement-complex-study.stillwave",
+    "bytes": 1714483,
+    "sha256": "1B32D5647EACAE4D8A8B0A7557E5AB582BB23F2ECEA4AD400ED5871D65946E27"
+  },
+  {
+    "file": "RELIABILITY_PASS.md",
+    "bytes": 12940,
+    "sha256": "83EE7DD7B8DF38938A3FE9E76DEA4059C1B1801892116BD256EEBA6284872E64"
+  },
+  {
+    "file": "RESEARCH.md",
+    "bytes": 7301,
+    "sha256": "49EB464A2D58F82D1D0922E1D959AD8F9BF304508F43783000CD9F62241551EB"
+  },
+  {
+    "file": "STUDIO_GUIDE.md",
+    "bytes": 16024,
+    "sha256": "C3B6E354C6F6A244354372F4ECDA1C7596E64471508A01E6133D788B21BBCE35"
+  },
+  {
+    "file": "STUDIO_PASS_PLAN.md",
+    "bytes": 4059,
+    "sha256": "FCD6BE62FB7AE92B1A660C949E5F413C0F342061376B586D48A9CF2C52524202"
+  },
+  {
+    "file": "studio-cel-study.stillwave",
+    "bytes": 3602197,
+    "sha256": "61A270563E0EEB036524BAD1148794D2DA1EE8BCB322C33D927E1CC1186A927A"
+  },
+  {
+    "file": "studio-core.js",
+    "bytes": 7073,
+    "sha256": "BFDF059ED1EBA0D4E29311BC41A96A5302419231EF1CF17B7E5392ADD7171B7E"
+  },
+  {
+    "file": "studio-hair-study.stillwave",
+    "bytes": 1291808,
+    "sha256": "F5CAA6C2FE77E1A97B73DFFF09B3337FA13C899D677DB8AC1CF26ADBBEB7837F"
+  },
+  {
+    "file": "studio-ui.js",
+    "bytes": 34236,
+    "sha256": "F0E0317C0F1AE8D93B2D1946228533403DE65872E8F144C40ECD5D743E4846ED"
+  },
+  {
+    "file": "style.css",
+    "bytes": 13457,
+    "sha256": "3E1DB4E36FAF27B69ABB71A2CBE5232B2F120976D9A5C438B6013065207AF63C"
+  },
+  {
+    "file": "test-all.cjs",
+    "bytes": 886,
+    "sha256": "C80EB2889E0A63DD7D3C3932E80F3A3A3C507B5CFADF6D40429BC93CD742EB26"
+  },
+  {
+    "file": "test-blink-quality.cjs",
+    "bytes": 17550,
+    "sha256": "1CDA8299E745BAE5A95474693470D820B3F317D49F146E068BF72BEC815D73A9"
+  },
+  {
+    "file": "test-blink-reference.cjs",
+    "bytes": 2218,
+    "sha256": "05F3073B428F005B068FBBB8EAC9D4A29A0B7414E4D79A72EF342A922626DCFF"
+  },
+  {
+    "file": "test-blink-refinement.cjs",
+    "bytes": 17305,
+    "sha256": "C0A8128C0B421CB5320A8F8BC390A904192ECE2E25FA5863F1E301FB9922A6B0"
+  },
+  {
+    "file": "test-blink.cjs",
+    "bytes": 12083,
+    "sha256": "654ECF0931C79D11F844DF7DB5D67294FA17928F4199F2E12A93C42628865A83"
+  },
+  {
+    "file": "test-cold-blink.cjs",
+    "bytes": 2146,
+    "sha256": "1102B2C4C0CF87D0B1E1E65F6BC773F232E9FCA7862A27F1D84942512158B883"
+  },
+  {
+    "file": "test-engine.cjs",
+    "bytes": 4015,
+    "sha256": "52E85F2FDE277C1FA7F1416FD51B88BF59B5BF0DE75152CD847FB3BCFB625852"
+  },
+  {
+    "file": "test-motion-browser.cjs",
+    "bytes": 6021,
+    "sha256": "8248FD4560995FB966CC5778571E6AE2EAD4FD8A6589DA28915B4832A9182168"
+  },
+  {
+    "file": "test-motion-continuity.cjs",
+    "bytes": 4116,
+    "sha256": "54E598F7F35F3BF9191157DA85296830434295A7B6E034BFEBE7B15E048104AF"
+  },
+  {
+    "file": "test-refinement-visual.cjs",
+    "bytes": 7004,
+    "sha256": "BDFA1FEE93C15936D525015A51D60B5E7BACCC3A2A002601DB744905DA2BFAD2"
+  },
+  {
+    "file": "test-refinement-workspace.cjs",
+    "bytes": 6280,
+    "sha256": "CBCC1C673B5ADCB2E9E0AE0E4962004D9CAFCAFB565D95A4BE188607A3ACA6B0"
+  },
+  {
+    "file": "test-release.cjs",
+    "bytes": 3771,
+    "sha256": "B248429107576C521643E66A53CC0BFF24218E8A0D812C3FAC8D8A2A1717849F"
+  },
+  {
+    "file": "test-studio-controls.cjs",
+    "bytes": 6707,
+    "sha256": "C554E18F6515CED878D0B5E8559C612A850D66B102F6D9C0A673F7D48C871CC3"
+  },
+  {
+    "file": "test-studio-smoke.cjs",
+    "bytes": 777,
+    "sha256": "0A18D41B3F72ED53781F9844187ED98A99D904D31D34375E7D1C526F00420CFA"
+  },
+  {
+    "file": "test-studio-visual.cjs",
+    "bytes": 6466,
+    "sha256": "2EF9A91CAE9CFFE7F857E145E2ED1ED5FC00FB7037273C18C18D0707343B6620"
+  },
+  {
+    "file": "test-studio.cjs",
+    "bytes": 16193,
+    "sha256": "45937A0B1F068BCCE551D7B50F2509D295E495FD74C146840F52CA3DD6F35A41"
+  },
+  {
+    "file": "test-two-eyes.cjs",
+    "bytes": 19371,
+    "sha256": "A2D905991E8C96C3369A27BF2BF9573F179188298BB855BC96FA85B7F5778DCD"
+  },
+  {
+    "file": "test-visibility.cjs",
+    "bytes": 3956,
+    "sha256": "F4E97185044A8E7D6E62814B9FACA55DC738F7CA88B4B1AC6D1DDF23DE4A1F68"
+  },
+  {
+    "file": "test.cjs",
+    "bytes": 9304,
+    "sha256": "08155B27FBB2EF60B1A5AD321160CAAA3CC8330B7D1CA5C3940A335783BD5FC3"
+  },
+  {
+    "file": "workspace.js",
+    "bytes": 19093,
+    "sha256": "862C9D366641F0718880350046327DAFD56BE070E1F2C032FC8553911CEFEBFB"
+  }
+]

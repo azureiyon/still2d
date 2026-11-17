@@ -1,0 +1,27 @@
+{
+  "reference": "pre-studio-v1 recoverable checkpoint",
+  "poses": [
+    0,
+    25,
+    50,
+    75,
+    100
+  ],
+  "results": [
+    {
+      "project": "blink-study",
+      "maximumError": 0,
+      "changedChannels": 0
+    },
+    {
+      "project": "blink-cel-study",
+      "maximumError": 19,
+      "changedChannels": 55
+    },
+    {
+      "project": "blink-two-eye-study",
+      "maximumError": 1,
+      "changedChannels": 6
+    }
+  ]
+}

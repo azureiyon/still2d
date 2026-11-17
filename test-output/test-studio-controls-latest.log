@@ -1,0 +1,52 @@
+{
+  "renderedBackingUndoAndPaintAboveCopies": {
+    "blue": [
+      0,
+      0,
+      255
+    ],
+    "red": [
+      255,
+      0,
+      0
+    ],
+    "again": [
+      0,
+      0,
+      255
+    ]
+  },
+  "mirroring": {
+    "onlyGeometry": true,
+    "valid": true,
+    "oneAction": true,
+    "undo": true
+  },
+  "explicitMaskMirror": {
+    "valid": true,
+    "reflectionErrors": 0,
+    "settings": true
+  },
+  "contextualLayouts": [
+    "motion",
+    "eyes",
+    "masks",
+    "repair"
+  ],
+  "extractionProtectionStrokeUndo": true,
+  "emptyMatte": {
+    "ready": true,
+    "gl": 0
+  },
+  "independentPatchDeformation": {
+    "change": 0,
+    "guard": 1,
+    "otherGuard": 1,
+    "gl": 0
+  },
+  "pathModes": {
+    "bendDifferent": true,
+    "flutterDifferent": true
+  },
+  "pageErrors": []
+}

@@ -1,0 +1,20 @@
+{
+  "frames": 676,
+  "seconds": 9.001099999999983,
+  "allEyesSynchronized": true,
+  "firstBlinkFullyClosed": true,
+  "closedSamples": 20,
+  "layerAlphaMax": [
+    255,
+    76
+  ],
+  "closures": [
+    0,
+    25,
+    50,
+    75,
+    100
+  ],
+  "regions": 3,
+  "pageErrors": []
+}

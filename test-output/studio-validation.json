@@ -1,0 +1,43 @@
+{
+  "curveSplitError": 0.0000034016183109338016,
+  "freeXYNodes": true,
+  "independentCreaseEndpoints": true,
+  "closedPosePaint": {
+    "sum": 9445,
+    "error": 0.0057842435489574105,
+    "closure": 0.75
+  },
+  "geometryCopyPreservesTargetMasks": true,
+  "allSlidersHaveReset": true,
+  "resetAndUndo": true,
+  "hair": {
+    "restMax": 0,
+    "restDifferent": 0,
+    "outsideChanges": 0,
+    "moving": 9691,
+    "rigidWidthError": 7.815970093361102e-14,
+    "rootDrift": 0,
+    "safetyScale": 1,
+    "ready": true,
+    "glError": 0
+  },
+  "realSource": "latest screen recording, open artwork frame 5.56s",
+  "manualHairTracingAndCopiedBacking": true,
+  "cloneEraseCopyTransformUndo": true,
+  "selectors": {
+    "background": 800,
+    "subject": 400,
+    "subtract": 0
+  },
+  "newProjectRoundTrip": true,
+  "oldSingleAndTwoEyeProjects": true,
+  "malformedPathRejected": true,
+  "renderedClosures": [
+    0,
+    25,
+    50,
+    75,
+    100
+  ],
+  "pageErrors": []
+}

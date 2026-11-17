@@ -1,0 +1,38 @@
+{
+  "actualIllustration": "Open-eye artwork crop from user OBS recording",
+  "pointerPlacement": true,
+  "twoDimensionalCurveHandles": true,
+  "handleUndoRedo": true,
+  "zeroClosurePixelIdentical": true,
+  "closuresTested": [
+    0,
+    50,
+    100
+  ],
+  "preservation": {
+    "outsidePixels": 157206,
+    "outsideChanged": 0,
+    "maximumOutsideError": 0,
+    "alphaChanged": 0,
+    "interiorSamples": 12982,
+    "interiorError": 139,
+    "sourceTextureUnchanged": true
+  },
+  "transparency": {
+    "translucentPixels": 6250,
+    "differentAlpha": 0
+  },
+  "largePlate": {
+    "size": [
+      1024,
+      981
+    ],
+    "firstPrepareMs": 892.3000000119209,
+    "glError": 0
+  },
+  "invalidCurveRejected": true,
+  "eyeProjectRoundTrip": true,
+  "legacyProjectLoads": true,
+  "automaticTiming": false,
+  "pageErrors": []
+}

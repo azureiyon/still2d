@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "file": "blink-study.stillwave",
+      "maximumDifference": 0,
+      "channelsOverOne": 0,
+      "changedOnClose": 92655,
+      "repairChanges": 0,
+      "selectedAlpha": 76,
+      "glError": 0,
+      "imageIsOriginal": true
+    },
+    {
+      "file": "blink-cel-study.stillwave",
+      "maximumDifference": 1,
+      "channelsOverOne": 0,
+      "changedOnClose": 181491,
+      "repairChanges": 0,
+      "selectedAlpha": 76,
+      "glError": 0,
+      "imageIsOriginal": true
+    },
+    {
+      "file": "blink-two-eye-study.stillwave",
+      "maximumDifference": 1,
+      "channelsOverOne": 0,
+      "changedOnClose": 67034,
+      "repairChanges": 0,
+      "selectedAlpha": 76,
+      "glError": 0,
+      "imageIsOriginal": true
+    }
+  ],
+  "splitOwnershipAndEnabledCache": {
+    "max": 0,
+    "n": 0,
+    "glError": 0
+  },
+  "pageErrors": []
+}

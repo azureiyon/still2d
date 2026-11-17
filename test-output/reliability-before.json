@@ -1,0 +1,83 @@
+[
+  {
+    "preset": "swing",
+    "anchor": "none",
+    "maxStep": 7.27740478515625,
+    "maxAcceleration": 7.48193359375,
+    "firstStep": 7.27740478515625,
+    "scaleSwitch": 0,
+    "switchTime": 0
+  },
+  {
+    "preset": "swing",
+    "anchor": "tip",
+    "maxStep": 3.638671875,
+    "maxAcceleration": 3.74090576171875,
+    "firstStep": 3.638671875,
+    "scaleSwitch": 15,
+    "switchTime": 1.9416666666666667
+  },
+  {
+    "preset": "swing",
+    "anchor": "middle",
+    "maxStep": 7.27740478515625,
+    "maxAcceleration": 7.48193359375,
+    "firstStep": 7.27740478515625,
+    "scaleSwitch": 14,
+    "switchTime": 1.925
+  },
+  {
+    "preset": "bend",
+    "anchor": "none",
+    "maxStep": 44.69769287109375,
+    "maxAcceleration": 43.83006286621094,
+    "firstStep": 9.279541015625,
+    "scaleSwitch": 4,
+    "switchTime": 0.3625
+  },
+  {
+    "preset": "bend",
+    "anchor": "tip",
+    "maxStep": 5.2850341796875,
+    "maxAcceleration": 5.38446044921875,
+    "firstStep": 4.6397705078125,
+    "scaleSwitch": 12,
+    "switchTime": 1.9375
+  },
+  {
+    "preset": "bend",
+    "anchor": "middle",
+    "maxStep": 28.958328247070312,
+    "maxAcceleration": 31.123336791992188,
+    "firstStep": 9.279541015625,
+    "scaleSwitch": 12,
+    "switchTime": 1.8958333333333333
+  },
+  {
+    "preset": "flutter",
+    "anchor": "none",
+    "maxStep": 39.9459228515625,
+    "maxAcceleration": 38.92637634277344,
+    "firstStep": 5.5120849609375,
+    "scaleSwitch": 5,
+    "switchTime": 0.32916666666666666
+  },
+  {
+    "preset": "flutter",
+    "anchor": "tip",
+    "maxStep": 7.032958984375,
+    "maxAcceleration": 7.1141357421875,
+    "firstStep": 5.5120849609375,
+    "scaleSwitch": 12,
+    "switchTime": 1.9375
+  },
+  {
+    "preset": "flutter",
+    "anchor": "middle",
+    "maxStep": 41.20783996582031,
+    "maxAcceleration": 43.41636657714844,
+    "firstStep": 5.5120849609375,
+    "scaleSwitch": 13,
+    "switchTime": 1.8916666666666666
+  }
+]

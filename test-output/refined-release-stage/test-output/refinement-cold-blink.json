@@ -1,0 +1,38 @@
+[
+  {
+    "build": "test-output/pre-reliability-reference/index.html",
+    "preparations": [
+      {
+        "whilePlaying": true,
+        "ms": 72.19999998807907
+      },
+      {
+        "whilePlaying": true,
+        "ms": 71.5
+      }
+    ],
+    "firstTime": 0.06,
+    "firstBlinkFullyClosed": true,
+    "maxWallFrameGap": 146.69999999999982,
+    "maxAnimatedFrameGap": 146.69999999999982,
+    "sampleCount": 52
+  },
+  {
+    "build": "index.html",
+    "preparations": [
+      {
+        "whilePlaying": false,
+        "ms": 71.89999997615814
+      },
+      {
+        "whilePlaying": false,
+        "ms": 73.69999998807907
+      }
+    ],
+    "firstTime": 0,
+    "firstBlinkFullyClosed": true,
+    "maxWallFrameGap": 146.7,
+    "maxAnimatedFrameGap": 13.5,
+    "sampleCount": 52
+  }
+]

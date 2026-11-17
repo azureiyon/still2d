@@ -1,0 +1,337 @@
+[
+  {
+    "file": "app.js",
+    "bytes": 32838,
+    "sha256": "857435C7DA39287E2D964C931161F4943800B92A00D0754864B30A87145303CF"
+  },
+  {
+    "file": "artwork.js",
+    "bytes": 14959,
+    "sha256": "15AB1EAC903F6757E761551AAE8A581A6D0C8F33949649676E9CDE17C9147FCE"
+  },
+  {
+    "file": "BLINK_IMPLEMENTATION_PLAN.md",
+    "bytes": 16827,
+    "sha256": "6ECECA3C3FB9DBABF99CF8A423CAB4CCEB61B22C6582774B5D7B6BD089CDF48E"
+  },
+  {
+    "file": "BLINK_MILESTONE.md",
+    "bytes": 6084,
+    "sha256": "EBE341AF057FFDFB09A3C9199D32A99F75539763464682F33E85F60FAC25F0FC"
+  },
+  {
+    "file": "BLINK_QUALITY.md",
+    "bytes": 8364,
+    "sha256": "21433900871028B94A9C29771F8C66C1336804AD07CD432060870DCEDFBEA87E"
+  },
+  {
+    "file": "BLINK_REFINEMENT.md",
+    "bytes": 8833,
+    "sha256": "EA272CACE8ABD5B4DDC811353F4A9D13BAE2FAE3AEFDC14D767C7177C16DCAC6"
+  },
+  {
+    "file": "BLINK_TWO_EYES.md",
+    "bytes": 6500,
+    "sha256": "B6A8B92436A9CF41E6D4B3103F7E66AC4C96B1190D795C5E80A17C7743D7A75B"
+  },
+  {
+    "file": "blink-cel-study.stillwave",
+    "bytes": 3579880,
+    "sha256": "FC27840D2B57BF54CD20BAAD2A84A7FBD540277EC2CC6D2BE18A429696CE9DF6"
+  },
+  {
+    "file": "blink-study.stillwave",
+    "bytes": 1026784,
+    "sha256": "EC5E287EA24627E23321EFB6311A831C1ABAE81757E6DE572418BD7EC54A66ED"
+  },
+  {
+    "file": "blink-two-eye-study.stillwave",
+    "bytes": 1677468,
+    "sha256": "8522ED4636B60874E55612430A990A9C10B7A80D71F4EE9FC1A9AF4B3E7760D7"
+  },
+  {
+    "file": "blink.js",
+    "bytes": 25442,
+    "sha256": "436A1E2A1011E639691ED71198137A78163F6A18DC5224D9D09BA60134FD8D66"
+  },
+  {
+    "file": "curve-paths.js",
+    "bytes": 3463,
+    "sha256": "1B6D80D5CFA5D0519EBF80EAB3162F66F0179AC42DDDEB16AD06A0047CA7E25A"
+  },
+  {
+    "file": "demo-data.js",
+    "bytes": 303487,
+    "sha256": "406DEF1DE320E16C867E3677D7226880255B3625044571C44ED395DDB6B4B3A3"
+  },
+  {
+    "file": "demo.jpg",
+    "bytes": 227513,
+    "sha256": "33E150D080A8776E5136685DDAF36A1B6E6FF13C5B693C23F09678EB0852827C"
+  },
+  {
+    "file": "demo.stillwave",
+    "bytes": 343255,
+    "sha256": "181830E31C8F93F8E50FF24EE826CA269021944CF32F1589A139EB6F530120D6"
+  },
+  {
+    "file": "engine.js",
+    "bytes": 12333,
+    "sha256": "5D0E0648DC52D60A15C512AE2414521B3645252A25B2D4860AC40BCE0AAAC50F"
+  },
+  {
+    "file": "eye-editor.js",
+    "bytes": 19071,
+    "sha256": "2ACD4484DED882B1825D79C95A33B60D5C99778333E91D4751138AA919A12C07"
+  },
+  {
+    "file": "eye-textures.js",
+    "bytes": 10353,
+    "sha256": "1E8A39AE098AE7AC9A299234435C63804F63353F412B40F50F876E83DA00785A"
+  },
+  {
+    "file": "eye-tools.js",
+    "bytes": 10524,
+    "sha256": "3A113A3FAFA10451D32871BEEDBC77DC73B728EDFAD81AAB8DA2C67CB0DE3E17"
+  },
+  {
+    "file": "hair-motion.js",
+    "bytes": 3615,
+    "sha256": "AA43BB8EEFEFD6C28D42AA8D34EE900F113B1AF1800496E5B9C9EC9830D26B98"
+  },
+  {
+    "file": "hair-study.stillwave",
+    "bytes": 347727,
+    "sha256": "B5CFE9C70619386B12685C5A0B7D4B546661C2301855C20A2B2A606D93B51427"
+  },
+  {
+    "file": "index.html",
+    "bytes": 12902,
+    "sha256": "F0A12557CC0BA28DEBE73E1FEBDD532CFA92B47DA838A14E7B64F8A595BACE4D"
+  },
+  {
+    "file": "Launch Stillwave.cmd",
+    "bytes": 37,
+    "sha256": "C369A077A253E26E89B85071FB50BB426AB159E49027572D5F1F18497386F266"
+  },
+  {
+    "file": "LAYER_ARCHITECTURE.md",
+    "bytes": 6111,
+    "sha256": "75CBB1AEE9653A9D4414CE26587C4293AE2005DF683802DDCC5CBA2FA7629DFF"
+  },
+  {
+    "file": "README.md",
+    "bytes": 11886,
+    "sha256": "961C8CA0122D904FF54CBC731A73D778F6D03BC8D40E80AED2BC307CEC62A76A"
+  },
+  {
+    "file": "refinement-complex-study.stillwave",
+    "bytes": 1714483,
+    "sha256": "1B32D5647EACAE4D8A8B0A7557E5AB582BB23F2ECEA4AD400ED5871D65946E27"
+  },
+  {
+    "file": "RELIABILITY_PASS.md",
+    "bytes": 12940,
+    "sha256": "83EE7DD7B8DF38938A3FE9E76DEA4059C1B1801892116BD256EEBA6284872E64"
+  },
+  {
+    "file": "RESEARCH.md",
+    "bytes": 7301,
+    "sha256": "49EB464A2D58F82D1D0922E1D959AD8F9BF304508F43783000CD9F62241551EB"
+  },
+  {
+    "file": "STUDIO_GUIDE.md",
+    "bytes": 16024,
+    "sha256": "C3B6E354C6F6A244354372F4ECDA1C7596E64471508A01E6133D788B21BBCE35"
+  },
+  {
+    "file": "STUDIO_PASS_PLAN.md",
+    "bytes": 4059,
+    "sha256": "FCD6BE62FB7AE92B1A660C949E5F413C0F342061376B586D48A9CF2C52524202"
+  },
+  {
+    "file": "studio-cel-study.stillwave",
+    "bytes": 3602197,
+    "sha256": "61A270563E0EEB036524BAD1148794D2DA1EE8BCB322C33D927E1CC1186A927A"
+  },
+  {
+    "file": "studio-core.js",
+    "bytes": 7073,
+    "sha256": "BFDF059ED1EBA0D4E29311BC41A96A5302419231EF1CF17B7E5392ADD7171B7E"
+  },
+  {
+    "file": "studio-hair-study.stillwave",
+    "bytes": 1291808,
+    "sha256": "F5CAA6C2FE77E1A97B73DFFF09B3337FA13C899D677DB8AC1CF26ADBBEB7837F"
+  },
+  {
+    "file": "studio-ui.js",
+    "bytes": 34236,
+    "sha256": "F0E0317C0F1AE8D93B2D1946228533403DE65872E8F144C40ECD5D743E4846ED"
+  },
+  {
+    "file": "style.css",
+    "bytes": 13457,
+    "sha256": "3E1DB4E36FAF27B69ABB71A2CBE5232B2F120976D9A5C438B6013065207AF63C"
+  },
+  {
+    "file": "workspace.js",
+    "bytes": 19093,
+    "sha256": "862C9D366641F0718880350046327DAFD56BE070E1F2C032FC8553911CEFEBFB"
+  },
+  {
+    "file": "test-output\\blink-comparison.png",
+    "bytes": 283586,
+    "sha256": "255947248A643D50E2B86584453E077DDAB6DF1070C54A84FFEB68DC4D67938B"
+  },
+  {
+    "file": "test-output\\blink-quality-comparison.png",
+    "bytes": 299330,
+    "sha256": "CA3B7EC9BFF073A20DDB005D89686347738F1B39653C47E266F72EF3CCC5F0A3"
+  },
+  {
+    "file": "test-output\\blink-two-style-comparison.png",
+    "bytes": 572655,
+    "sha256": "459C9A696988CBCD013DF0EFB448ABF2677CABD6B96DE33229DB826DD42BE53F"
+  },
+  {
+    "file": "test-output\\refinement-backing-30.png",
+    "bytes": 625352,
+    "sha256": "F782E32A1989063110E928F85DCC7B107187893BB0DA7E8D49F636CEAB6A1EF9"
+  },
+  {
+    "file": "test-output\\refinement-blink-reference.json",
+    "bytes": 438,
+    "sha256": "FC4FF8FF39A428AA33CA700213A41766644209DABBABDEF2834BE119062BFD1A"
+  },
+  {
+    "file": "test-output\\refinement-cold-blink.json",
+    "bytes": 783,
+    "sha256": "7501130353A34C32C80714C567680AF111C8D4530104D11DD1618ECAF5E46563"
+  },
+  {
+    "file": "test-output\\refinement-combined-playback.webm",
+    "bytes": 2570883,
+    "sha256": "BF0D70B1A07A37165E52E597998A0C994F6A1087E410F8A0D6D70191273ABDB7"
+  },
+  {
+    "file": "test-output\\refinement-combined-poses.png",
+    "bytes": 200324,
+    "sha256": "BBCF8075FE6F63AA6388C1E5AF717A802528175AD8531C095193B1197BAB5E82"
+  },
+  {
+    "file": "test-output\\refinement-combined-validation.json",
+    "bytes": 276,
+    "sha256": "F12E42E2E62793229B2F30EFE9B539E690F99C3E9CCB0B0F20464CB894ED3E71"
+  },
+  {
+    "file": "test-output\\refinement-complex-editor.png",
+    "bytes": 810291,
+    "sha256": "B5CD1D7AE150CC9B64593CA3ED83F7633932E632B9B028930BBB4D0F4E3C4C24"
+  },
+  {
+    "file": "test-output\\refinement-complex-source.png",
+    "bytes": 840180,
+    "sha256": "F5F091CE6534BA824C0A49FFBF9A747ECFFECBD5AAC71078D3A6EBADE477FB5C"
+  },
+  {
+    "file": "test-output\\refinement-long-motion.json",
+    "bytes": 6050,
+    "sha256": "5D7E39A8878CEA3964F875C0D061E55E44D477CDE0FA7DF169A2B4DD20D37E2D"
+  },
+  {
+    "file": "test-output\\refinement-mesh.png",
+    "bytes": 628579,
+    "sha256": "A897C19771AF9A60841201A85A0B87C2C9C490CD655F5C7F208AA00BC22F179F"
+  },
+  {
+    "file": "test-output\\refinement-playback-contact.png",
+    "bytes": 1782670,
+    "sha256": "6826F6806291992B8D6AED00920CC1F20D4BCFAC0352C9118416C412B0FFE22D"
+  },
+  {
+    "file": "test-output\\refinement-workspace-eyes.png",
+    "bytes": 621024,
+    "sha256": "6FA2DB2D1BA3F6DAC74EB84FEABCB23C5899E5B673051243E8BF98A2604563B1"
+  },
+  {
+    "file": "test-output\\refinement-workspace-final.png",
+    "bytes": 843634,
+    "sha256": "9731BCF48D271ECA321C5EB3C696C15BEB254FE986996430AC1368079F5F6AAD"
+  },
+  {
+    "file": "test-output\\refinement-workspace-masks.png",
+    "bytes": 624444,
+    "sha256": "7616CE4D61B0CED1014F5A88693C6494297B15CC1E5BBF1479863B9E12A0D847"
+  },
+  {
+    "file": "test-output\\refinement-workspace-motion.png",
+    "bytes": 620704,
+    "sha256": "8AFE9F7D196DCC394ED141CBB2A3F842FB5CC53AC639B3A5C5C7534F1B2556EE"
+  },
+  {
+    "file": "test-output\\refinement-workspace-repair.png",
+    "bytes": 625659,
+    "sha256": "48D1E01475EE6FF21A152604B422CF25ADB56B9440155077EED57C0CEFE7E61C"
+  },
+  {
+    "file": "test-output\\refinement-workspace-validation.json",
+    "bytes": 807,
+    "sha256": "33A63BD6EAD40CAE900658327717377801393D5522ABC1579632D741834CFF5D"
+  },
+  {
+    "file": "test-output\\release-launch.png",
+    "bytes": 643670,
+    "sha256": "422E2D97B82C868BA05C74E9579238B36BE275201EF2C0C608DFCFB95C45C68D"
+  },
+  {
+    "file": "test-output\\release-validation.json",
+    "bytes": 316,
+    "sha256": "EBAFDB8063DE5D791DF63B17A94FF89AF194E7E89F4D06769B0B4EA9CB7F72CC"
+  },
+  {
+    "file": "test-output\\studio-blink-comparison.png",
+    "bytes": 783512,
+    "sha256": "91BC2CFED6964C6F05FCA48B43903F552232F46077FD650CFC95B2B5F794E059"
+  },
+  {
+    "file": "test-output\\studio-hair-comparison.png",
+    "bytes": 511416,
+    "sha256": "77AC31B210D6074A178C2D7D42BD29F0EBF52EEC000295BD63000BE41D7148DB"
+  },
+  {
+    "file": "test-output\\studio-suite.json",
+    "bytes": 931,
+    "sha256": "A6290CB2C6F0DD70849AD01C4D8FAE38B44BD6593A015721DDC4487E926EECF2"
+  },
+  {
+    "file": "test-output\\studio-swing-preview.webm",
+    "bytes": 408030,
+    "sha256": "FA4DE7AD3CB0DB53AEC4E8C448B8EF9FFB1286C7F4ED2983BAE1DB754BDC623E"
+  },
+  {
+    "file": "test-output\\two-eye-comparison.png",
+    "bytes": 1356037,
+    "sha256": "0075B0D77FCBF86DE7F813F189F5356DC2DD144032482D9FD4D5E64D3054C7F0"
+  },
+  {
+    "file": "_checkpoints\\2026-11-10-pre-reliability-v2-manifest.json",
+    "bytes": 6785,
+    "sha256": "8DFAC6B32C28AE2BA305E364172B6BCCBEC6834A05B04F75E91EC4940ABE023D"
+  },
+  {
+    "file": "_checkpoints\\2026-11-10-pre-reliability-v2.zip",
+    "bytes": 3912661,
+    "sha256": "7473E3B7D424D6B43BF5CEF1F698E6E3227E94875A60DF6B43F3B4CF954C1B72"
+  },
+  {
+    "file": "_checkpoints\\2026-11-10-pre-studio-v1-manifest.json",
+    "bytes": 4423,
+    "sha256": "35C8AEFEF551F60E93982DCB768E310FC78445F664E259260F778B244224D9F3"
+  },
+  {
+    "file": "_checkpoints\\2026-11-10-pre-studio-v1.zip",
+    "bytes": 2502271,
+    "sha256": "FF8668A9E1E7E3EEFE86FC14EECE3868A60EFA1B9E941B83927A8AE383EF2537"
+  }
+]

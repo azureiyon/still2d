@@ -1,0 +1,13 @@
+{
+  "unrelatedRegionChangePx": 0,
+  "oldGlobalLimiterUnrelatedRegionChangePx": 7.289016456959441,
+  "overlapOrderIndependent": true,
+  "deterministic": true,
+  "stressScenarios": 5,
+  "minimumSignedDoubleArea": 20.880668776109815,
+  "maximumDisplacementGradient": 0.4190000370893004,
+  "pinnedAnchorsStable": true,
+  "fallbackIslandActivations": 98,
+  "rootMeanMotionPx": 0,
+  "tipMeanMotionPx": 4.947457537325419
+}

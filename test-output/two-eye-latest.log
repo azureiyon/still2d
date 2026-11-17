@@ -1,0 +1,116 @@
+{
+  "actualSource": "Open-eye frame 6.59s, user 2026-11-10 recording",
+  "independentlyTraced": true,
+  "noMirroring": true,
+  "closures": [
+    0,
+    25,
+    50,
+    75,
+    100
+  ],
+  "individualPreviewClosures": [
+    0,
+    25,
+    50,
+    75,
+    100
+  ],
+  "pixels": {
+    "zeroErrors": 0,
+    "outsideErrors": 0,
+    "protectedErrors": 0,
+    "alphaErrors": 0,
+    "mergeErrors": 0,
+    "irisSamples": 1568,
+    "remainingYellow": 0,
+    "glError": 0
+  },
+  "crease": {
+    "changed": 6293,
+    "perEye": [
+      2224,
+      4069
+    ],
+    "ceilingErrors": 0
+  },
+  "sharedTimingSamples": [
+    {
+      "t": 0,
+      "values": [
+        0,
+        0
+      ]
+    },
+    {
+      "t": 0.024,
+      "values": [
+        0.15625000000000017,
+        0.15625000000000017
+      ]
+    },
+    {
+      "t": 0.048,
+      "values": [
+        0.5000000000000004,
+        0.5000000000000004
+      ]
+    },
+    {
+      "t": 0.096,
+      "values": [
+        1,
+        1
+      ]
+    },
+    {
+      "t": 0.12,
+      "values": [
+        1,
+        1
+      ]
+    },
+    {
+      "t": 0.2,
+      "values": [
+        0.5829903978052109,
+        0.5829903978052109
+      ]
+    },
+    {
+      "t": 0.28,
+      "values": [
+        0,
+        0
+      ]
+    },
+    {
+      "t": 0.8,
+      "values": [
+        0,
+        0
+      ]
+    },
+    {
+      "t": 2.448,
+      "values": [
+        0.5000000000000004,
+        0.5000000000000004
+      ]
+    }
+  ],
+  "animation": {
+    "frames": 212,
+    "shared": true,
+    "closed": true,
+    "open": true
+  },
+  "pauseReset": true,
+  "independentEditsUndo": true,
+  "perEyeMasks": true,
+  "saveReopen": true,
+  "removeUndo": true,
+  "legacySingleEyeLoads": true,
+  "invalidThirdEyeRejected": true,
+  "pageErrors": []
+}

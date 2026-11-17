@@ -1,0 +1,40 @@
+{
+  "actualIllustration": "Unmodified open-eye crop from user OBS recording",
+  "closures": [
+    0,
+    25,
+    50,
+    75,
+    100
+  ],
+  "lidMotion": "upper-led",
+  "lowerLidLift": 0,
+  "lidChecks": {
+    "lowerTravelPx": 0,
+    "landingErrorPx": 6.9908796491407646e-15,
+    "nonMonotone": 0,
+    "lowerRimError": 0,
+    "lowerRimSamples": 123,
+    "assetsReused": true
+  },
+  "liftControlAndUndo": true,
+  "legacySeamPreserved": true,
+  "manualLashRefinement": true,
+  "chosenSourceSkinDonor": true,
+  "pixels": {
+    "zeroErrors": 0,
+    "outsideErrors": 0,
+    "alphaErrors": 0,
+    "creaseErrors": 0,
+    "changedPixels": 34020,
+    "sourceUnchanged": true,
+    "glError": 0
+  },
+  "pointerPaintEraseUndoRedo": true,
+  "pointerSkinDonor": true,
+  "sourceAndMotionMasksUntouched": true,
+  "newFieldsSaveReopen": true,
+  "malformedEyeRejected": true,
+  "supportCacheInvalidation": true,
+  "pageErrors": []
+}
