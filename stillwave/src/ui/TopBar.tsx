@@ -4,9 +4,9 @@ import { useStore, type Mode } from '../state/store';
 import { Icon, IconButton } from './controls';
 
 const MODES: { id: Mode; label: string; hint: string }[] = [
-  { id: 'artwork', label: 'Artwork', hint: 'Arrange your drawing' },
+  { id: 'artwork', label: 'Artwork', hint: 'Arrange and retouch your drawing' },
   { id: 'motion', label: 'Motion', hint: 'Paint what moves' },
-  { id: 'stage', label: 'Stage', hint: 'Perform and export' },
+  { id: 'stage', label: 'Export', hint: 'Preview and save the animation' },
 ];
 
 export function TopBar() {
@@ -43,7 +43,7 @@ export function TopBar() {
         <span className="divider" />
         <button className="btn" onClick={async () => importFiles(await pickFiles(`.stillwave,${ARTWORK_TYPES}`))}><Icon name="open" size={15} /> Open</button>
         <button className="btn" onClick={() => saveProject()} title="Save project (Ctrl+S)"><Icon name="save" size={15} /> Save</button>
-        <button className="btn btn-primary" onClick={() => set({ exportOpen: true })}><Icon name="export" size={15} /> Export</button>
+
       </div>
     </header>
   );

@@ -231,13 +231,14 @@ function renderPart(draw: Draw) {
   return c;
 }
 
-function eyeZones(): EyeZone[] {
+function eyeZones(layers: 'all' | string[] = 'all'): EyeZone[] {
   const ids = [uid('zone'), uid('zone')];
   return EYES.map((e, i) => ({
-    id: ids[i], type: 'eye', name: i === 0 ? 'Left eye' : 'Right eye', enabled: true, layers: 'all',
+    id: ids[i], type: 'eye', name: i === 0 ? 'Left eye' : 'Right eye', enabled: true, layers,
     a: { x: e.cx - EYE.hw, y: EYE.y }, b: { x: e.cx + EYE.hw, y: EYE.y },
     upT: EYE.upT * e.flip, upH: EYE.upH, loT: EYE.loT, loH: EYE.loH, upRound: EYE.upRound, loRound: EYE.loRound,
-    band: EYE.band + 1, loBand: 2, skin: 7, meet: 0.12, gaze: 0.6, pair: ids[1 - i],
+    band: EYE.band + 1, loBand: 2, skin: 7, meet: 0.1, gaze: 0.6, pair: ids[1 - i],
+    upPts: [], loPts: [], fill: 'soft', roll: 0.35, box: null, paint: null, ctl: null,
   }));
 }
 
@@ -272,27 +273,27 @@ export function sampleLayered(): Doc {
   const zones: Zone[] = [
     { id: uid('zone'), type: 'head', name: 'Head', enabled: true, layers: headLayers, mask: null, whole: true, auto: false, pivot: { x: 450, y: 640 }, turn: 0.6, nod: 0.6, tilt: 0.6 },
     { id: uid('zone'), type: 'breath', name: 'Breath', enabled: true, layers: [ids.Body], mask: null, whole: true, auto: false, base: { x: 450, y: 1100 }, amount: 0.5 },
-    ...eyeZones(),
+    ...eyeZones([ids.Face, ids.Eyes]),
     mouthZone(),
-    { id: uid('zone'), type: 'sway', name: 'Back hair', enabled: true, layers: [ids['Back hair']], mask: null, whole: true, auto: false, anchor: { x: 450, y: 330 }, tip: { x: 450, y: 850 }, ...SWAY_FEELS.Heavy, amount: 0.22 },
+    { id: uid('zone'), type: 'sway', name: 'Back hair', enabled: true, layers: [ids['Back hair']], mask: null, whole: true, auto: false, anchor: { x: 450, y: 330 }, tip: { x: 450, y: 850 }, path: [], style: 'swing', ...SWAY_FEELS.Heavy, amount: 0.22 },
     {
       id: uid('zone'), type: 'sway', name: 'Left lock', enabled: true, layers: [ids['Front hair']], whole: false, auto: false,
       mask: maskFromStrokes(doc, ZONE_INFO.sway.color, [{ pts: [286, 430, 284, 520, 286, 600, 284, 660], r: 34, soft: 0.6 }]),
-      anchor: { x: 290, y: 400 }, tip: { x: 282, y: 660 }, ...SWAY_FEELS.Soft,
+      anchor: { x: 290, y: 400 }, tip: { x: 282, y: 660 }, path: [], style: 'bend', ...SWAY_FEELS.Soft,
     },
     {
       id: uid('zone'), type: 'sway', name: 'Right lock', enabled: true, layers: [ids['Front hair']], whole: false, auto: false,
       mask: maskFromStrokes(doc, ZONE_INFO.sway.color, [{ pts: [614, 430, 616, 520, 614, 600, 616, 660], r: 34, soft: 0.6 }]),
-      anchor: { x: 610, y: 400 }, tip: { x: 618, y: 660 }, ...SWAY_FEELS.Soft,
+      anchor: { x: 610, y: 400 }, tip: { x: 618, y: 660 }, path: [], style: 'bend', ...SWAY_FEELS.Soft,
     },
     {
       id: uid('zone'), type: 'sway', name: 'Fringe', enabled: true, layers: [ids['Front hair']], whole: false, auto: false,
       mask: maskFromStrokes(doc, ZONE_INFO.sway.color, [{ pts: [340, 400, 400, 396, 450, 396, 500, 396, 560, 400], r: 34, soft: 0.7 }]),
-      anchor: { x: 450, y: 300 }, tip: { x: 450, y: 430 }, ...SWAY_FEELS.Soft, amount: 0.2,
+      anchor: { x: 450, y: 300 }, tip: { x: 450, y: 430 }, path: [], style: 'bend', ...SWAY_FEELS.Soft, amount: 0.2,
     },
     { id: uid('zone'), type: 'sway', name: 'Ahoge', enabled: true, layers: [ids['Ahoge and clip']], whole: false, auto: false,
       mask: maskFromStrokes(doc, ZONE_INFO.sway.color, [{ pts: [456, 205, 456, 160, 480, 115], r: 40, soft: 0.4 }]),
-      anchor: { x: 456, y: 214 }, tip: { x: 490, y: 108 }, ...SWAY_FEELS.Bouncy },
+      anchor: { x: 456, y: 214 }, tip: { x: 490, y: 108 }, path: [], style: 'bend', ...SWAY_FEELS.Bouncy },
   ];
   return {
     version: 1, name: 'Mio (layered sample)', width: W, height: H, layers, zones,
@@ -330,17 +331,17 @@ export function sampleFlat(): Doc {
     {
       id: uid('zone'), type: 'sway', name: 'Left hair', enabled: true, layers: 'all', whole: false, auto: false,
       mask: maskFromStrokes(doc, ZONE_INFO.sway.color, [{ pts: [262, 470, 250, 600, 252, 720, 270, 820], r: 58, soft: 0.7 }]),
-      anchor: { x: 270, y: 420 }, tip: { x: 256, y: 840 }, ...SWAY_FEELS.Soft, amount: 0.3,
+      anchor: { x: 270, y: 420 }, tip: { x: 256, y: 840 }, path: [], style: 'bend', ...SWAY_FEELS.Soft, amount: 0.3,
     },
     {
       id: uid('zone'), type: 'sway', name: 'Right hair', enabled: true, layers: 'all', whole: false, auto: false,
       mask: maskFromStrokes(doc, ZONE_INFO.sway.color, [{ pts: [638, 470, 650, 600, 648, 720, 630, 820], r: 58, soft: 0.7 }]),
-      anchor: { x: 630, y: 420 }, tip: { x: 644, y: 840 }, ...SWAY_FEELS.Soft, amount: 0.3,
+      anchor: { x: 630, y: 420 }, tip: { x: 644, y: 840 }, path: [], style: 'bend', ...SWAY_FEELS.Soft, amount: 0.3,
     },
     {
       id: uid('zone'), type: 'sway', name: 'Ahoge', enabled: true, layers: 'all', whole: false, auto: false,
       mask: maskFromStrokes(doc, ZONE_INFO.sway.color, [{ pts: [458, 190, 460, 150, 486, 112], r: 36, soft: 0.5 }]),
-      anchor: { x: 456, y: 212 }, tip: { x: 490, y: 108 }, ...SWAY_FEELS.Bouncy,
+      anchor: { x: 456, y: 212 }, tip: { x: 490, y: 108 }, path: [], style: 'bend', ...SWAY_FEELS.Bouncy,
     },
   ];
   return {

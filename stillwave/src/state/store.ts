@@ -1,9 +1,14 @@
 import { create } from 'zustand';
 import { produce } from 'immer';
-import { emptyDoc, type Doc, type Zone } from '../engine/types';
+import { collectGarbage } from '../engine/assets';
+import type { PaintMode } from '../engine/retouch';
+import { emptyDoc, type Doc, type Vec, type Zone } from '../engine/types';
 
 export type Mode = 'artwork' | 'motion' | 'stage';
-export type Tool = 'move' | 'brush' | 'erase';
+export type Tool = 'move' | 'brush' | 'erase' | 'clone';
+/** What the brush paints on a selected eye: lid skin, lash marks or keep marks. */
+export type EyeLayer = 'skin' | 'lash' | 'keep';
+export interface Brush { size: number; soft: number; opacity: number; color: string; mode: PaintMode }
 export type InspectorTab = 'motion' | 'rhythm' | 'mood';
 
 interface HistoryEntry { doc: Doc; key?: string; at: number }
@@ -19,7 +24,10 @@ interface State {
   mode: Mode;
   playing: boolean;
   tool: Tool;
-  brush: { size: number; soft: number };
+  brush: Brush;
+  eyeLayer: EyeLayer;
+  lidHold: Record<string, number>; // held lid position per eye while editing
+  cloneFrom: Vec | null;
   layerId: string | null;
   zoneId: string | null;
   exprId: string | null;
@@ -27,7 +35,6 @@ interface State {
   panels: boolean;
   wire: boolean;
   hoverZone: string | null;
-  exportOpen: boolean;
   voiceOn: boolean;
   toasts: Toast[];
   viewNonce: number; // bump to ask the stage to re-fit the view
@@ -54,7 +61,10 @@ export const useStore = create<State>((set, get) => ({
   mode: 'artwork',
   playing: false,
   tool: 'move',
-  brush: { size: 60, soft: 0.6 },
+  brush: { size: 60, soft: 0.6, opacity: 1, color: '#f2c9b8', mode: 'normal' },
+  eyeLayer: 'skin',
+  lidHold: {},
+  cloneFrom: null,
   layerId: null,
   zoneId: null,
   exprId: null,
@@ -62,7 +72,6 @@ export const useStore = create<State>((set, get) => ({
   panels: true,
   wire: false,
   hoverZone: null,
-  exportOpen: false,
   voiceOn: false,
   toasts: [],
   viewNonce: 0,
@@ -75,7 +84,9 @@ export const useStore = create<State>((set, get) => ({
     const last = past[past.length - 1];
     const merge = key && last && last.key === key && now - last.at < 900;
     const entry: HistoryEntry = merge ? { ...last, at: now } : { doc, key, at: now };
-    set({ doc: next, past: merge ? [...past.slice(0, -1), entry] : [...past.slice(-119), entry], future: [], dirty: true });
+    const kept = merge ? [...past.slice(0, -1), entry] : [...past.slice(-79), entry];
+    set({ doc: next, past: kept, future: [], dirty: true });
+    if (!merge && kept.length % 8 === 0) collectGarbage([next, ...kept.map((e) => e.doc)]);
   },
   editZone: (id, fn, key) =>
     get().edit((d) => {
@@ -97,7 +108,7 @@ export const useStore = create<State>((set, get) => ({
     set({
       doc, past: [], future: [], dirty: false,
       layerId: doc.layers[doc.layers.length - 1]?.id ?? null,
-      zoneId: null, exprId: doc.expressions[0]?.id ?? null,
+      zoneId: null, exprId: doc.expressions[0]?.id ?? null, lidHold: {}, cloneFrom: null,
       mode: doc.zones.length ? 'motion' : 'artwork', playing: doc.zones.length > 0, tool: 'move',
       tab: 'rhythm', viewNonce: get().viewNonce + 1,
     }),

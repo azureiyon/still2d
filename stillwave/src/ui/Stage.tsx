@@ -1,15 +1,16 @@
 // The canvas workspace: WebGL artwork underneath, a 2D overlay for washes and
 // handles on top, and every direct-manipulation gesture.
 import { useEffect, useRef } from 'react';
-import { images, layerCorners, maskBounds, masks, registerMask, sampleMask, zoneBounds } from '../engine/assets';
-import { axisFrame, eyeContains, eyeOutline, mouthContains } from '../engine/geom';
+import { adoptImage, images, layerCorners, makeCanvas, maskBounds, masks, registerMask, sampleMask, zoneBounds } from '../engine/assets';
+import { axisFrame, eyeBox, eyeContains, eyeOutline, lidLo, lidUp, mouthContains, spineBind, swaySpine } from '../engine/geom';
 import { fitView, Renderer } from '../engine/gl';
 import { beginMask, strokeSegment } from '../engine/paint';
+import { boxAffine, compositeRest, layerAffine, pickColor, Stroke } from '../engine/retouch';
 import { isPaintZone, ZONE_INFO, type Doc, type EyeZone, type Layer, type MouthZone, type Vec, type Zone } from '../engine/types';
 import { useStore } from '../state/store';
 import { live } from './live';
 
-interface Handle { id: string; x: number; y: number; shape?: 'dot' | 'ring' | 'diamond' | 'lid' }
+interface Handle { id: string; x: number; y: number; shape?: 'dot' | 'ring' | 'diamond' | 'lid' | 'small' }
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; panX: number; panY: number }
@@ -18,9 +19,13 @@ type Drag =
   | { kind: 'layer-rotate'; id: string; rot: number; a0: number; key: string }
   | { kind: 'handle'; zone: string; handle: string; key: string }
   | { kind: 'zone-move'; zone: string; last: Vec; key: string }
-  | { kind: 'paint'; zone: string; canvas: HTMLCanvasElement; last: Vec; first: Vec; erase: boolean };
+  | { kind: 'paint'; zone: string; canvas: HTMLCanvasElement; last: Vec; first: Vec; erase: boolean }
+  | { kind: 'retouch'; layer: string; stroke: Stroke; tmp: string }
+  | { kind: 'eye-paint'; zone: string; which: 'paint' | 'ctl'; stroke: Stroke; box: { x: number; y: number; w: number; h: number } };
 
 let dragSerial = 0;
+const EYE_CELL = 256;
+const MARK = { keep: '#ff0000', lash: '#00ff00' };
 
 function layerHit(l: Layer, p: Vec): boolean {
   const c = Math.cos(-l.rotation), s = Math.sin(-l.rotation);
@@ -30,41 +35,56 @@ function layerHit(l: Layer, p: Vec): boolean {
   if (lx < 0 || ly < 0 || lx >= l.w || ly >= l.h) return false;
   const a = images.get(l.image);
   if (!a) return true;
-  const px = a.canvas.getContext('2d')!.getImageData(Math.floor((lx / l.w) * a.w), Math.floor((ly / l.h) * a.h), 1, 1).data;
-  return px[3] > 10;
+  const t = makeCanvas(1, 1);
+  const g = t.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(a.canvas, Math.floor((lx / l.w) * a.w), Math.floor((ly / l.h) * a.h), 1, 1, 0, 0, 1, 1);
+  return g.getImageData(0, 0, 1, 1).data[3] > 10;
 }
 
-function zoneHandles(z: Zone, zoom: number): Handle[] {
-  if (z.type === 'sway') return [{ id: 'anchor', ...z.anchor, shape: 'ring' }, { id: 'tip', ...z.tip, shape: 'diamond' }];
+const cl = (t: number) => Math.min(0.85, Math.max(-0.85, t));
+
+function zoneHandles(z: Zone, zoom: number, hold: number): Handle[] {
+  if (z.type === 'sway') {
+    return [{ id: 'anchor', ...z.anchor, shape: 'ring' }, ...z.path.map((p, i) => ({ id: `p${i}`, ...p, shape: 'small' as const })), { id: 'tip', ...z.tip, shape: 'diamond' }];
+  }
   if (z.type === 'head') return [{ id: 'pivot', ...z.pivot, shape: 'ring' }];
   if (z.type === 'breath') return [{ id: 'base', ...z.base, shape: 'ring' }];
+  if (z.type === 'hold') return [];
   const f = axisFrame(z);
   if (z.type === 'mouth') {
     return [{ id: 'a', ...z.a }, { id: 'b', ...z.b }, { id: 'bow', ...f.at(0, z.bow) }, { id: 'open', ...f.at(0, z.bow - Math.max(z.openH, 14 / zoom)), shape: 'diamond' }];
   }
-  const cl = (t: number) => Math.min(0.85, Math.max(-0.85, t * f.flip));
   const lidX = 1 + 22 / zoom / f.hw;
   return [
     { id: 'a', ...z.a }, { id: 'b', ...z.b },
-    { id: 'up', ...f.at(cl(z.upT), z.upH) },
-    { id: 'lo', ...f.at(cl(z.loT), -z.loH) },
-    { id: 'band', ...f.at(cl(z.upT), z.upH + z.band + 10 / zoom), shape: 'diamond' },
-    { id: 'lid', ...f.at(lidX, z.upH - (z.upH + z.loH) * (live.anim.lidScrub[z.id] ?? 0)), shape: 'lid' },
+    { id: 'up', ...f.at(cl(z.upT * f.flip), z.upH) },
+    { id: 'lo', ...f.at(cl(z.loT * f.flip), -z.loH) },
+    ...z.upPts.map((p, i) => ({ id: `u${i}`, ...f.at(p.t * f.flip, p.y), shape: 'small' as const })),
+    ...z.loPts.map((p, i) => ({ id: `l${i}`, ...f.at(p.t * f.flip, -p.y), shape: 'small' as const })),
+    { id: 'band', ...f.at(cl(z.upT * f.flip), z.upH + z.band + 10 / zoom), shape: 'diamond' },
+    { id: 'lid', ...f.at(lidX, z.upH - (z.upH + z.loH) * hold), shape: 'lid' },
   ];
 }
 
 function applyHandle(z: Zone, handle: string, p: Vec) {
-  if (z.type === 'sway') { if (handle === 'anchor') z.anchor = p; else z.tip = p; z.auto = false; return; }
+  if (z.type === 'sway') {
+    if (handle === 'anchor') z.anchor = p; else if (handle === 'tip') z.tip = p; else z.path[Number(handle.slice(1))] = p;
+    z.auto = false;
+    return;
+  }
   if (z.type === 'head') { z.pivot = p; z.auto = false; return; }
   if (z.type === 'breath') { z.base = p; z.auto = false; return; }
+  if (z.type === 'hold') return;
   if (handle === 'a' || handle === 'b') { z[handle] = p; return; }
   const f = axisFrame(z);
   const { t, y } = f.local(p);
   if (z.type === 'mouth') { if (handle === 'open') z.openH = Math.max(4, z.bow - y); if (handle === 'bow') z.bow = y; return; }
   const tt = Math.min(0.8, Math.max(-0.8, t)) * f.flip;
   if (handle === 'up') { z.upT = tt; z.upH = Math.max(2, y); }
-  if (handle === 'lo') { z.loT = tt; z.loH = Math.max(1, -y); }
-  if (handle === 'band') z.band = Math.max(0, y - z.upH - 10 / live.view.zoom);
+  else if (handle === 'lo') { z.loT = tt; z.loH = Math.max(1, -y); }
+  else if (handle === 'band') z.band = Math.max(0, y - z.upH - 10 / live.view.zoom);
+  else if (handle[0] === 'u') z.upPts[Number(handle.slice(1))] = { t: Math.min(0.95, Math.max(-0.95, t)) * f.flip, y: Math.max(0.5, y) };
+  else if (handle[0] === 'l') z.loPts[Number(handle.slice(1))] = { t: Math.min(0.95, Math.max(-0.95, t)) * f.flip, y: Math.max(0.5, -y) };
 }
 
 export function Stage() {
@@ -82,6 +102,7 @@ export function Stage() {
       useStore.getState().toast((err as Error).message, 'error');
       return;
     }
+    live.renderer = renderer;
     const ctx = ov.getContext('2d')!;
     const S = useStore.getState;
     let drag: Drag | null = null;
@@ -92,18 +113,19 @@ export function Stage() {
     let hoverHandle: string | null = null;
     let raf = 0;
     let last = performance.now();
+    let cloneOffset: Vec | null = null;
+    let cloneOffsetFor: Vec | null = null;
 
     const size = () => ({ w: el.clientWidth, h: el.clientHeight });
     const toDoc = (sx: number, sy: number): Vec => ({ x: (sx - live.view.panX) / live.view.zoom, y: (sy - live.view.panY) / live.view.zoom });
     const toScreen = (p: Vec): Vec => ({ x: p.x * live.view.zoom + live.view.panX, y: p.y * live.view.zoom + live.view.panY });
-    const local = (e: PointerEvent | WheelEvent) => {
+    const local = (e: MouseEvent) => {
       const r = el.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
     const insets = () => {
       const s = S();
-      const side = s.panels && s.mode !== 'stage' ? 300 : 40;
-      return { l: side, r: s.panels ? 320 : 40, t: 76, b: 120 };
+      return { l: s.panels ? 300 : 40, r: s.panels ? 330 : 40, t: 76, b: s.mode === 'artwork' ? 40 : 110 };
     };
     const fit = () => {
       const { w, h } = size();
@@ -112,6 +134,7 @@ export function Stage() {
       const v = fitView(d, Math.max(100, w - i.l - i.r), Math.max(100, h - i.t - i.b));
       live.view = { zoom: v.zoom, panX: v.panX + i.l, panY: v.panY + i.t };
     };
+    const hold = (id: string) => S().lidHold[id] ?? 0;
 
     const zoneAt = (doc: Doc, p: Vec, selected: string | null): Zone | null => {
       const order = [...doc.zones].reverse().sort((a, b) => Number(b.id === selected) - Number(a.id === selected));
@@ -121,15 +144,11 @@ export function Stage() {
         if (z.type === 'mouth' && mouthContains(z, p, pad)) return z;
       }
       for (const z of order) {
-        if (!isPaintZone(z)) continue;
-        if (z.whole) {
-          if (doc.layers.some((l) => (z.layers === 'all' || z.layers.includes(l.id)) && l.visible && layerHit(l, p)) && z.id === selected) return z;
-          continue;
-        }
+        if (!isPaintZone(z) || z.whole) continue;
         const m = z.mask ? masks.get(z.mask) : null;
         if (m && sampleMask(m, p.x / doc.width, p.y / doc.height) > 0.12) return z;
       }
-      // whole-layer zones last: smallest region wins
+      // whole-layer motions last: the smallest region under the pointer wins
       let best: Zone | null = null;
       let bestArea = Infinity;
       for (const z of order) {
@@ -144,7 +163,7 @@ export function Stage() {
     };
 
     const handleAt = (z: Zone, sp: Vec): Handle | null => {
-      for (const h of zoneHandles(z, live.view.zoom).reverse()) {
+      for (const h of zoneHandles(z, live.view.zoom, hold(z.id)).reverse()) {
         const s = toScreen(h);
         if (Math.hypot(s.x - sp.x, s.y - sp.y) < 9) return h;
       }
@@ -158,6 +177,19 @@ export function Stage() {
       const len = Math.hypot(top.x - c.x, top.y - c.y) || 1;
       const rot = { x: top.x + ((top.x - c.x) / len) * 26, y: top.y + ((top.y - c.y) / len) * 26 };
       return { cs, top, rot, c };
+    };
+
+    const strokeOptions = (p: Vec, colorOverride?: string) => {
+      const s = S();
+      const tool = s.tool === 'move' ? 'brush' : s.tool;
+      let source, offset;
+      if (tool === 'clone') {
+        if (!s.cloneFrom) return null;
+        source = compositeRest(s.doc);
+        if (!cloneOffset || cloneOffsetFor !== s.cloneFrom) { cloneOffset = { x: s.cloneFrom.x - p.x, y: s.cloneFrom.y - p.y }; cloneOffsetFor = s.cloneFrom; }
+        offset = cloneOffset;
+      }
+      return { tool, color: colorOverride ?? s.brush.color, size: s.brush.size, soft: s.brush.soft, opacity: colorOverride ? 1 : s.brush.opacity, mode: colorOverride ? ('normal' as const) : s.brush.mode, source, offset };
     };
 
     // ------------------------------------------------------------ pointer input
@@ -182,8 +214,28 @@ export function Stage() {
         return;
       }
 
+      const painting = s.tool !== 'move';
+      // Alt-click with a paint tool: pick a colour, or choose where the clone copies from
+      if (painting && e.altKey) {
+        if (s.tool === 'clone') { s.set({ cloneFrom: p }); cloneOffset = null; }
+        else { const c = pickColor(doc, p); if (c) s.set({ brush: { ...s.brush, color: c } }); }
+        return;
+      }
+
       if (s.mode === 'artwork') {
         const sel = doc.layers.find((l) => l.id === s.layerId);
+        if (painting) {
+          if (!sel) { s.toast('Select a layer to paint on.'); return; }
+          const base = images.get(sel.image)?.canvas;
+          const opts = strokeOptions(p);
+          if (!base) return;
+          if (!opts) { s.toast('Alt-click the spot to copy from first.'); return; }
+          const stroke = new Stroke(base, layerAffine(sel), opts);
+          const tmp = adoptImage(stroke.work);
+          drag = { kind: 'retouch', layer: sel.id, stroke, tmp };
+          stroke.to(p);
+          return;
+        }
         if (sel) {
           const h = layerHandles(sel);
           if (Math.hypot(h.rot.x - sp.x, h.rot.y - sp.y) < 11) {
@@ -203,11 +255,26 @@ export function Stage() {
 
       // motion mode, paused
       const zone = doc.zones.find((z) => z.id === s.zoneId);
-      if ((s.tool === 'brush' || s.tool === 'erase') && zone && isPaintZone(zone)) {
+      if (painting && zone && isPaintZone(zone)) {
         if (zone.whole) { s.toast('This motion moves whole layers. Turn off "Move whole layers" to paint it.'); return; }
+        if (s.tool === 'clone') return;
         const canvas = beginMask(doc, zone.mask);
         drag = { kind: 'paint', zone: zone.id, canvas, last: p, first: p, erase: s.tool === 'erase' };
         paintTo(p);
+        return;
+      }
+      if (painting && zone?.type === 'eye') {
+        const marks = s.eyeLayer !== 'skin';
+        if (marks && s.tool === 'clone') return;
+        const which = marks ? 'ctl' : 'paint';
+        const box = zone.box ?? eyeBox(zone);
+        const existing = zone[which] ? images.get(zone[which]!)?.canvas : null;
+        const base = existing ?? makeCanvas(EYE_CELL, EYE_CELL);
+        const opts = strokeOptions(p, marks ? MARK[s.eyeLayer as 'keep' | 'lash'] : undefined);
+        if (!opts) { s.toast('Alt-click the spot to copy from first.'); return; }
+        const stroke = new Stroke(base, boxAffine(box, EYE_CELL), opts);
+        drag = { kind: 'eye-paint', zone: zone.id, which, stroke, box };
+        stroke.to(p);
         return;
       }
       if (zone) {
@@ -239,7 +306,6 @@ export function Stage() {
       const p = toDoc(sp.x, sp.y);
       const s = S();
       if (!drag) {
-        // follow the pointer while live; find hover targets while editing
         const d = s.doc;
         live.anim.pointer = { x: Math.max(-1, Math.min(1, (p.x - d.width / 2) / (d.width * 0.7))), y: Math.max(-1, Math.min(1, (p.y - d.height * 0.4) / (d.height * 0.7))) };
         if (s.mode === 'motion' && !s.playing && s.tool === 'move') {
@@ -281,7 +347,7 @@ export function Stage() {
           const g = drag;
           if (g.handle === 'lid') {
             const z = s.doc.zones.find((x) => x.id === g.zone) as EyeZone | undefined;
-            if (z) live.anim.lidScrub[z.id] = Math.min(1, Math.max(0, (z.upH - axisFrame(z).local(p).y) / (z.upH + z.loH)));
+            if (z) s.set({ lidHold: { ...s.lidHold, [z.id]: Math.min(1, Math.max(0, (z.upH - axisFrame(z).local(p).y) / (z.upH + z.loH))) } });
           } else s.editZone(g.zone, (z) => applyHandle(z, g.handle, p), g.key);
           break;
         }
@@ -295,6 +361,15 @@ export function Stage() {
         case 'paint':
           paintTo(p);
           break;
+        case 'retouch': {
+          drag.stroke.to(p);
+          const a = images.get(drag.tmp);
+          if (a) a.version++;
+          break;
+        }
+        case 'eye-paint':
+          drag.stroke.to(p);
+          break;
       }
     };
 
@@ -302,9 +377,8 @@ export function Stage() {
       const g = drag;
       drag = null;
       if (!g) return;
-      if (g.kind === 'handle' && g.handle === 'lid') live.anim.lidScrub[g.zone] = 0;
+      const s = S();
       if (g.kind === 'paint') {
-        const s = S();
         const id = registerMask(g.canvas);
         const b = maskBounds(masks.get(id)!);
         const d = s.doc;
@@ -317,6 +391,53 @@ export function Stage() {
           if (z.type === 'sway' && firstPaint && Math.hypot(g.last.x - g.first.x, g.last.y - g.first.y) > 12) { z.anchor = g.first; z.tip = g.last; }
           if (z.type === 'head') z.pivot = { x: cx, y: bottom - hgt * 0.1 };
           if (z.type === 'breath') z.base = { x: cx, y: bottom };
+        });
+      } else if (g.kind === 'retouch') {
+        s.edit((d) => {
+          const l = d.layers.find((x) => x.id === g.layer);
+          if (!l) return;
+          l.original ??= l.image;
+          l.image = g.tmp;
+        });
+      } else if (g.kind === 'eye-paint') {
+        const id = adoptImage(g.stroke.work);
+        s.editZone<EyeZone>(g.zone, (z) => { z.box ??= g.box; z[g.which] = id; });
+      }
+    };
+
+    const onDouble = (e: MouseEvent) => {
+      const s = S();
+      if (s.mode !== 'motion' || s.playing || s.tool !== 'move') return;
+      const zone = s.doc.zones.find((z) => z.id === s.zoneId);
+      if (!zone) return;
+      const sp = local(e);
+      const p = toDoc(sp.x, sp.y);
+      const near = 9 / live.view.zoom;
+      const h = handleAt(zone, sp);
+      if (zone.type === 'sway') {
+        if (h && h.id[0] === 'p') { s.editZone(zone.id, (z) => { if (z.type === 'sway') z.path.splice(Number(h.id.slice(1)), 1); }); return; }
+        if (h) return;
+        const spine = swaySpine(zone);
+        const b = spineBind(spine, p.x, p.y);
+        if (Math.hypot(b.cx - p.x, b.cy - p.y) > near || zone.path.length >= 6) return;
+        // insert in order along the spine
+        const index = zone.path.filter((q) => spineBind(spine, q.x, q.y).at < b.at).length;
+        s.editZone(zone.id, (z) => { if (z.type === 'sway') z.path.splice(index, 0, p); });
+      } else if (zone.type === 'eye') {
+        if (h && (h.id[0] === 'u' || h.id[0] === 'l') && h.id.length > 1 && h.id !== 'up' && h.id !== 'lo' && h.id !== 'lid') {
+          const i = Number(h.id.slice(1));
+          s.editZone<EyeZone>(zone.id, (z) => { (h.id[0] === 'u' ? z.upPts : z.loPts).splice(i, 1); });
+          return;
+        }
+        if (h) return;
+        const f = axisFrame(zone);
+        const { t, y } = f.local(p);
+        if (Math.abs(t) > 0.95) return;
+        const onUp2 = Math.abs(y - lidUp(zone, t)) < near, onLo = Math.abs(y + lidLo(zone, t)) < near;
+        if (!onUp2 && !onLo) return;
+        s.editZone<EyeZone>(zone.id, (z) => {
+          const list = onUp2 ? z.upPts : z.loPts;
+          if (list.length < 6) list.push({ t: t * f.flip, y: Math.abs(y) });
         });
       }
     };
@@ -349,14 +470,16 @@ export function Stage() {
       }
     };
     const onLeave = () => { cursor = null; live.anim.pointer = null; if (S().hoverZone) S().set({ hoverZone: null }); };
+    const noMenu = (e: Event) => e.preventDefault();
 
     ov.addEventListener('pointerdown', onDown);
     ov.addEventListener('pointermove', onMove);
     ov.addEventListener('pointerup', onUp);
     ov.addEventListener('pointercancel', onUp);
     ov.addEventListener('pointerleave', onLeave);
+    ov.addEventListener('dblclick', onDouble);
     ov.addEventListener('wheel', onWheel, { passive: false });
-    ov.addEventListener('contextmenu', (e) => e.preventDefault());
+    ov.addEventListener('contextmenu', noMenu);
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', onKey);
 
@@ -373,7 +496,7 @@ export function Stage() {
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#141824';
       ctx.fillStyle = hot ? '#ffffff' : color;
-      const r = hot ? 6.5 : 5.5;
+      const r = h.shape === 'small' ? (hot ? 5 : 4) : hot ? 6.5 : 5.5;
       ctx.beginPath();
       if (h.shape === 'diamond') { ctx.rotate(Math.PI / 4); ctx.rect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6); }
       else if (h.shape === 'lid') { ctx.roundRect(-9, -5, 18, 10, 5); }
@@ -382,6 +505,28 @@ export function Stage() {
       ctx.stroke();
       if (h.shape === 'ring') { ctx.fillStyle = '#141824'; ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, 7); ctx.fill(); }
       ctx.restore();
+    };
+    const brushRing = (color: string) => {
+      if (!cursor) return;
+      const s = S();
+      const r = (s.brush.size / 2) * live.view.zoom;
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(20,24,36,0.5)';
+      ctx.beginPath(); ctx.arc(cursor.x, cursor.y, r, 0, 7); ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = color;
+      ctx.beginPath(); ctx.arc(cursor.x, cursor.y, r, 0, 7); ctx.stroke();
+      ctx.setLineDash([2, 4]);
+      ctx.beginPath(); ctx.arc(cursor.x, cursor.y, r * (1 - s.brush.soft), 0, 7); ctx.stroke();
+      ctx.setLineDash([]);
+    };
+    const cloneMark = () => {
+      const s = S();
+      if (s.tool !== 'clone' || !s.cloneFrom) return;
+      // while painting, show where pixels are being copied from right now
+      const at = cursor && cloneOffset && cloneOffsetFor === s.cloneFrom && drag ? { x: toDoc(cursor.x, cursor.y).x + cloneOffset.x, y: toDoc(cursor.x, cursor.y).y + cloneOffset.y } : s.cloneFrom;
+      const c = toScreen(at);
+      ctx.strokeStyle = 'rgba(20,24,36,0.7)'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(c.x - 9, c.y); ctx.lineTo(c.x + 9, c.y); ctx.moveTo(c.x, c.y - 9); ctx.lineTo(c.x, c.y + 9); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
     };
 
     const drawOverlay = (dpr: number) => {
@@ -394,7 +539,7 @@ export function Stage() {
 
       if (s.mode === 'artwork') {
         const l = d.layers.find((x) => x.id === s.layerId);
-        if (l) {
+        if (l && s.tool === 'move') {
           const hd = layerHandles(l);
           ctx.strokeStyle = '#a9b4ff';
           ctx.lineWidth = 1.5;
@@ -408,6 +553,14 @@ export function Stage() {
           ctx.strokeStyle = '#141824';
           for (const c of hd.cs) { ctx.beginPath(); ctx.rect(c.x - 5, c.y - 5, 10, 10); ctx.fill(); ctx.stroke(); }
           ctx.beginPath(); ctx.arc(hd.rot.x, hd.rot.y, 6, 0, 7); ctx.fill(); ctx.stroke();
+        } else if (l && s.tool !== 'move') {
+          // faint frame: paint lands only inside the selected layer
+          const cs = layerCorners(l).map(toScreen);
+          ctx.strokeStyle = 'rgba(169,180,255,0.5)'; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+          ctx.beginPath(); cs.forEach((c, i) => (i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y))); ctx.closePath(); ctx.stroke();
+          ctx.setLineDash([]);
+          cloneMark();
+          brushRing(s.tool === 'erase' ? '#ffffff' : s.tool === 'clone' ? '#a9b4ff' : s.brush.color);
         }
         return;
       }
@@ -437,6 +590,8 @@ export function Stage() {
           }
         }
       }
+      const zone = d.zones.find((z) => z.id === s.zoneId);
+      const eyePainting = zone?.type === 'eye' && s.tool !== 'move';
       // eye and mouth outlines
       for (const z of d.zones) {
         if (!z.enabled) continue;
@@ -445,11 +600,11 @@ export function Stage() {
         ctx.lineJoin = 'round';
         if (z.type === 'eye') {
           const o = eyeOutline(z);
-          ctx.globalAlpha = sel ? 1 : hov ? 0.9 : 0.55;
+          ctx.globalAlpha = sel ? (eyePainting ? 0.35 : 1) : hov ? 0.9 : 0.55;
           poly([...o.up, ...o.lo.reverse()], true);
           ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(20,24,36,0.55)'; ctx.stroke();
           ctx.lineWidth = 1.6; ctx.strokeStyle = color; ctx.stroke();
-          if (sel) {
+          if (sel && !eyePainting) {
             ctx.setLineDash([3, 4]);
             poly(o.band); ctx.stroke();
             ctx.setLineDash([]);
@@ -473,16 +628,28 @@ export function Stage() {
           ctx.globalAlpha = 1;
         }
       }
+      // an eye's own paint: the area it covers, and its keep (red) and lash (green) marks
+      if (zone?.type === 'eye' && eyePainting) {
+        const box = zone.box ?? eyeBox(zone);
+        const r = { x: box.x * v.zoom + v.panX, y: box.y * v.zoom + v.panY, w: box.w * v.zoom, h: box.h * v.zoom };
+        ctx.strokeStyle = 'rgba(111,184,255,0.55)'; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        ctx.setLineDash([]);
+        if (s.eyeLayer !== 'skin') {
+          const marks = drag?.kind === 'eye-paint' && drag.which === 'ctl' ? drag.stroke.work : zone.ctl ? images.get(zone.ctl)?.canvas : null;
+          if (marks) { ctx.globalAlpha = 0.5; ctx.drawImage(marks, r.x, r.y, r.w, r.h); ctx.globalAlpha = 1; }
+        }
+        cloneMark();
+        brushRing(s.tool === 'erase' ? '#ffffff' : s.eyeLayer === 'skin' ? (s.tool === 'clone' ? '#a9b4ff' : s.brush.color) : MARK[s.eyeLayer]);
+      }
       // handles of the selected motion
-      const zone = d.zones.find((z) => z.id === s.zoneId);
       if (zone && s.tool === 'move') {
         const color = ZONE_INFO[zone.type].color;
         if (zone.type === 'sway') {
-          const a = toScreen(zone.anchor), t = toScreen(zone.tip);
-          ctx.strokeStyle = 'rgba(20,24,36,0.6)'; ctx.lineWidth = 4.5;
-          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-          ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([2, 5]); ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+          const pts = swaySpine(zone).pts.map(toScreen);
+          const line = () => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.stroke(); };
+          ctx.strokeStyle = 'rgba(20,24,36,0.6)'; ctx.lineWidth = 4.5; ctx.lineJoin = 'round'; line();
+          ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([2, 5]); ctx.lineCap = 'round'; line();
           ctx.setLineDash([]);
         }
         if (zone.type === 'breath') {
@@ -492,26 +659,20 @@ export function Stage() {
           ctx.setLineDash([]);
         }
         const activeHandle = drag?.kind === 'handle' ? drag.handle : hoverHandle;
-        for (const hd of zoneHandles(zone, v.zoom)) drawHandle(hd, color, hd.id === activeHandle);
+        for (const hd of zoneHandles(zone, v.zoom, hold(zone.id))) drawHandle(hd, color, hd.id === activeHandle);
       }
-      // brush ring
-      if (cursor && (s.tool === 'brush' || s.tool === 'erase') && zone && isPaintZone(zone)) {
-        const r = (s.brush.size / 2) * v.zoom;
-        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(20,24,36,0.5)';
-        ctx.beginPath(); ctx.arc(cursor.x, cursor.y, r, 0, 7); ctx.stroke();
-        ctx.lineWidth = 1.5; ctx.strokeStyle = s.tool === 'erase' ? '#ffffff' : ZONE_INFO[zone.type].color;
-        ctx.beginPath(); ctx.arc(cursor.x, cursor.y, r, 0, 7); ctx.stroke();
-        ctx.setLineDash([2, 4]);
-        ctx.beginPath(); ctx.arc(cursor.x, cursor.y, r * (1 - s.brush.soft), 0, 7); ctx.stroke();
-        ctx.setLineDash([]);
-      }
+      // brush ring for motion paint
+      if (zone && isPaintZone(zone) && s.tool !== 'move') brushRing(s.tool === 'erase' ? '#ffffff' : ZONE_INFO[zone.type].color);
     };
 
     // ------------------------------------------------------------ frame loop
+    let lastSig = '';
+    let lastDoc: Doc | null = null;
+    let wasDragging = false;
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
       const s = S();
-      const d = s.doc;
+      let d = s.doc;
       const { w, h } = size();
       if (w < 2 || h < 2) return;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -525,15 +686,28 @@ export function Stage() {
       a.idleTarget = playing ? 1 : 0;
       a.poseTarget = playing || (s.mode === 'motion' && s.tab === 'mood') ? 1 : 0;
       a.exprId = s.exprId;
-      a.demo = !playing && s.mode === 'motion' && !drag && s.tab !== 'mood' ? s.hoverZone : null;
+      a.demo = !playing && s.mode === 'motion' && !drag && s.tab !== 'mood' && s.tool === 'move' ? s.hoverZone : null;
+      // a held lid stays where it was put, for as long as that eye is being edited
+      a.lidScrub = !playing && s.mode === 'motion' && s.zoneId && s.lidHold[s.zoneId] ? { [s.zoneId]: s.lidHold[s.zoneId] } : {};
+      if (live.scrubAll !== null) for (const z of d.zones) if (z.type === 'eye') a.lidScrub[z.id] = live.scrubAll;
       live.voiceLevel = s.voiceOn ? live.voice.level() : 0;
       a.voice = playing ? live.voiceLevel : 0;
       const f = a.step((now - last) / 1000, d);
       last = now;
 
+      // strokes in progress are shown without touching the document
+      let livePaint: Map<string, HTMLCanvasElement> | undefined;
+      if (drag?.kind === 'retouch') {
+        const g = drag;
+        d = { ...d, layers: d.layers.map((l) => (l.id === g.layer ? { ...l, image: g.tmp } : l)) };
+      } else if (drag?.kind === 'eye-paint') {
+        livePaint = new Map([[`${drag.zone}:${drag.which}`, drag.stroke.work]]);
+      }
+
       const v = live.view;
       const stageBg = s.mode === 'stage' ? d.stage.background : 'transparent';
-      renderer.render(d, f, { zoom: v.zoom * dpr, panX: v.panX * dpr, panY: v.panY * dpr }, { wire: s.wire && s.mode === 'motion', ghost: s.mode === 'artwork' });
+      renderer.render(d, f, { zoom: v.zoom * dpr, panX: v.panX * dpr, panY: v.panY * dpr }, { wire: s.wire && s.mode === 'motion', ghost: s.mode === 'artwork', livePaint });
+      live.guarded = renderer.guarded;
 
       board.style.display = d.layers.length ? '' : 'none';
       board.style.transform = `translate(${v.panX}px, ${v.panY}px)`;
@@ -542,22 +716,19 @@ export function Stage() {
       board.dataset.bg = s.mode === 'stage' ? (stageBg === 'transparent' ? 'checker' : 'solid') : 'paper';
       board.style.backgroundColor = s.mode === 'stage' && stageBg !== 'transparent' ? stageBg : '';
       el.dataset.live = playing ? '1' : '0';
-      el.style.cursor = spaceDown || drag?.kind === 'pan' ? 'grabbing'
-        : s.mode === 'motion' && !s.playing && s.tool !== 'move' ? 'none'
-        : hoverHandle || s.hoverZone ? 'pointer' : 'default';
+      const paintCursor = s.tool !== 'move' && (s.mode === 'artwork' || (s.mode === 'motion' && !s.playing));
+      el.style.cursor = spaceDown || drag?.kind === 'pan' ? 'grabbing' : paintCursor ? 'none' : hoverHandle || s.hoverZone ? 'pointer' : 'default';
+
       // the overlay only repaints when something it shows has changed
       const brushing = s.tool !== 'move' && cursor ? `${cursor.x},${cursor.y}` : '';
-      const sig = [s.mode, s.playing, s.tab, s.zoneId, s.hoverZone, s.layerId, s.tool, s.brush.size, s.brush.soft, v.zoom, v.panX, v.panY, brushing, hoverHandle, a.demo, W, H].join('|');
-      if (drag || sig !== lastSig || d !== lastDoc || lidWasDown) {
+      const sig = [s.mode, s.playing, s.tab, s.zoneId, s.hoverZone, s.layerId, s.tool, s.brush.size, s.brush.soft, s.brush.color, s.eyeLayer, s.cloneFrom?.x, s.cloneFrom?.y, s.zoneId ? s.lidHold[s.zoneId] : 0, v.zoom, v.panX, v.panY, brushing, hoverHandle, a.demo, W, H].join('|');
+      if (drag || wasDragging || sig !== lastSig || s.doc !== lastDoc) {
         lastSig = sig;
-        lastDoc = d;
-        lidWasDown = !!drag;
+        lastDoc = s.doc;
+        wasDragging = !!drag;
         drawOverlay(dpr);
       }
     };
-    let lastSig = '';
-    let lastDoc: Doc | null = null;
-    let lidWasDown = false;
     raf = requestAnimationFrame(frame);
 
     return () => {
@@ -567,7 +738,9 @@ export function Stage() {
       ov.removeEventListener('pointerup', onUp);
       ov.removeEventListener('pointercancel', onUp);
       ov.removeEventListener('pointerleave', onLeave);
+      ov.removeEventListener('dblclick', onDouble);
       ov.removeEventListener('wheel', onWheel);
+      ov.removeEventListener('contextmenu', noMenu);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKey);
     };

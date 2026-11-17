@@ -48,7 +48,7 @@ export function eyeSide(doc: Doc, e: EyeZone): 'L' | 'R' {
 }
 
 interface BlinkEvent { t0: number; peak: number }
-interface SwayState { th: number; om: number; hist: Float32Array; hi: number; phase: number }
+interface SwayState { th: number; om: number; hist: Float32Array; hi: number; phase: number; th2: number; om2: number; hist2: Float32Array }
 
 const hashPhase = (id: string) => {
   let h = 2166136261;
@@ -322,7 +322,7 @@ export class Animator {
   private tickSway(z: Extract<Zone, { type: 'sway' }>, h: number, idle: number, L: number, demo: number, tempo: number) {
     let s = this.sway.get(z.id);
     if (!s) {
-      s = { th: 0, om: 0, hist: new Float32Array(HIST), hi: 0, phase: hashPhase(z.id) };
+      s = { th: 0, om: 0, hist: new Float32Array(HIST), hi: 0, phase: hashPhase(z.id), th2: 0, om2: 0, hist2: new Float32Array(HIST) };
       this.sway.set(z.id, s);
     }
     const freq = 2.4 - z.weight * 1.8; // Hz: light things flutter, heavy things swing
@@ -340,20 +340,35 @@ export class Animator {
     s.th += s.om * h;
     if (s.th > 2.5) { s.th = 2.5; s.om = 0; }
     if (s.th < -2.5) { s.th = -2.5; s.om = 0; }
+    // a second, lighter spring for flutter: quicker, looser, mostly felt at the tip
+    const w2 = w0 * 2.7;
+    const gust = (this.osc(1.31, s.phase * 1.3, 1) * 0.6 + this.osc(2.17, s.phase * 0.7, 1) * 0.4) * z.breeze * idle;
+    const acc2 = w2 * w2 * (gust * 0.5 + s.th * 0.35 - s.th2) - 2 * 0.16 * w2 * s.om2 + (inertia * 0.6 + kick) * w2;
+    s.om2 += acc2 * h;
+    s.th2 += s.om2 * h;
+    if (Math.abs(s.th2) > 2.5) { s.th2 = Math.sign(s.th2) * 2.5; s.om2 = 0; }
     s.hi = (s.hi + 1) % HIST;
     s.hist[s.hi] = s.th;
+    s.hist2[s.hi] = s.th2;
 
-    const out = (this.frame.sway[z.id] as Float32Array | undefined) ?? new Float32Array(SWAY_SAMPLES + 1);
+    // What the renderer gets: how much each stretch of the spine turns, root to tip.
+    const out = new Float32Array(SWAY_SAMPLES + 1);
     const amp = z.amount * 0.55 * Math.min(1.6, 0.35 + L * 0.65);
     const lag = z.ripple * 0.42;
-    for (let i = 0; i <= SWAY_SAMPLES; i++) {
-      const d = (i / SWAY_SAMPLES) * 1.5;
-      const back = Math.min(HIST - 2, (lag * d) / STEP);
+    const past = (hist: Float32Array, seconds: number) => {
+      const back = Math.min(HIST - 2, seconds / STEP);
       const i0 = Math.floor(back);
-      const fr = back - i0;
-      const a = s.hist[(s.hi - i0 + HIST * 2) % HIST];
-      const b2 = s.hist[(s.hi - i0 - 1 + HIST * 2) % HIST];
-      out[i] = (a + (b2 - a) * fr) * amp * Math.pow(d, 1.25);
+      const a = hist[(s!.hi - i0 + HIST * 2) % HIST];
+      const b2 = hist[(s!.hi - i0 - 1 + HIST * 2) % HIST];
+      return a + (b2 - a) * (back - i0);
+    };
+    for (let i = 0; i <= SWAY_SAMPLES; i++) {
+      const d = i / SWAY_SAMPLES;
+      if (z.style === 'swing') out[i] = s.th * amp * 0.85; // the same turn everywhere: a rigid swing from the root
+      else {
+        out[i] = past(s.hist, lag * d) * amp * 2 * d; // turns more toward the tip, and later
+        if (z.style === 'flutter') out[i] += past(s.hist2, lag * 0.5 * d) * amp * 1.3 * d * d;
+      }
     }
     void tempo;
     return out;

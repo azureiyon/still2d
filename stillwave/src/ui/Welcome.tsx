@@ -14,7 +14,7 @@ export function Welcome() {
     <div className="welcome">
       <div className="welcome-card">
         <h1>Bring a drawing to life</h1>
-        <p className="lede">Stillwave turns a character illustration into a blinking, breathing avatar. No bones, no rig. You paint the parts that should move.</p>
+        <p className="lede">Stillwave makes an illustration blink, breathe and sway. No bones, no rig: you paint the parts that should move, then export the animation.</p>
         <div className="welcome-drop">
           <button className="btn btn-primary btn-big" onClick={async () => importFiles(await pickFiles(`${ARTWORK_TYPES},.stillwave`))}>
             <Icon name="image" size={18} /> Choose artwork
@@ -24,7 +24,7 @@ export function Welcome() {
         <div className="welcome-row">
           <button className="sample" onClick={() => load(sampleLayered())}>
             <strong>Meet Mio, in layers</strong>
-            <small>A finished sample avatar built from eight layers</small>
+            <small>A finished sample animation built from eight layers</small>
           </button>
           <button className="sample" onClick={() => load(sampleFlat())}>
             <strong>Mio, flattened</strong>
@@ -38,9 +38,9 @@ export function Welcome() {
           )}
         </div>
         <ol className="steps">
-          <li><strong>Artwork</strong> Bring in a drawing and arrange it.</li>
+          <li><strong>Artwork</strong> Bring in a drawing. Arrange and retouch it.</li>
           <li><strong>Motion</strong> Fit an outline to each eye, then brush over hair, head and chest.</li>
-          <li><strong>Stage</strong> Perform with moods and your voice, or export.</li>
+          <li><strong>Export</strong> Preview it, then save a GIF, video or frames.</li>
         </ol>
       </div>
     </div>

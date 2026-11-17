@@ -17,9 +17,13 @@ export interface Layer {
   opacity: number;
   visible: boolean;
   depth: number; // -1 (far) .. 1 (near): parallax when the head turns
+  original?: string; // image before any retouching or lifting, for "restore"
+  role?: 'repair' | 'lifted' | 'backing';
 }
 
-export type ZoneType = 'eye' | 'sway' | 'head' | 'breath' | 'mouth';
+export type ZoneType = 'eye' | 'sway' | 'head' | 'breath' | 'mouth' | 'hold';
+export type SwayStyle = 'swing' | 'bend' | 'flutter';
+export type LidPoint = { t: number; y: number };
 
 interface ZoneBase {
   id: string;
@@ -38,6 +42,8 @@ export interface SwayZone extends PaintZone {
   type: 'sway';
   anchor: Vec;
   tip: Vec;
+  path: Vec[]; // optional points between root and tip, so the spine can follow a curl
+  style: SwayStyle; // swing: rigid from the root; bend: curls progressively; flutter: bend plus a fast tip
   amount: number;
   weight: number;
   bounce: number;
@@ -59,6 +65,11 @@ export interface BreathZone extends PaintZone {
   amount: number;
 }
 
+/** Painted "nothing here moves" area. Wins over every other motion. */
+export interface HoldZone extends PaintZone {
+  type: 'hold';
+}
+
 export interface EyeZone extends ZoneBase {
   type: 'eye';
   a: Vec; // corners
@@ -75,6 +86,13 @@ export interface EyeZone extends ZoneBase {
   meet: number; // where the lids meet: 0 lower lid .. 1 upper lid
   gaze: number;
   pair: string | null;
+  upPts: LidPoint[]; // extra points the upper lid passes through (besides its peak)
+  loPts: LidPoint[];
+  fill: 'soft' | 'stretch'; // how hidden skin is made: blended skin tone, or the skin above pulled down
+  roll: number; // lashes foreshorten as the lid closes
+  box: { x: number; y: number; w: number; h: number } | null; // artboard rect the eye paint covers
+  paint: string | null; // hand-painted lid skin (image id)
+  ctl: string | null; // red = keep as drawn, green = travels with the lid (image id)
 }
 
 export interface MouthZone extends ZoneBase {
@@ -88,7 +106,7 @@ export interface MouthZone extends ZoneBase {
   color: string;
 }
 
-export type Zone = SwayZone | HeadZone | BreathZone | EyeZone | MouthZone;
+export type Zone = SwayZone | HeadZone | BreathZone | EyeZone | MouthZone | HoldZone;
 
 export interface LidPose {
   upper: number;
@@ -150,7 +168,8 @@ export const ZONE_INFO: Record<ZoneType, { label: string; color: string; hint: s
   sway: { label: 'Sway', color: '#ff8fb3', hint: 'Hair, ribbons, ears, tails. Paint from root to tip.', paint: true },
   head: { label: 'Head', color: '#ffc46b', hint: 'Tilts, turns and nods. Paint the head and neck.', paint: true },
   breath: { label: 'Breath', color: '#7eddb5', hint: 'A slow rise and fall. Paint the chest and shoulders.', paint: true },
-  mouth: { label: 'Mouth', color: '#ff7a6b', hint: 'Opens to your voice and smiles. Fit the line to the lips.', paint: false },
+  mouth: { label: 'Mouth', color: '#ff7a6b', hint: 'Opens and smiles. Fit the line to the lips.', paint: false },
+  hold: { label: 'Hold still', color: '#8fa3c7', hint: 'Paint anything that must never move: a face under swaying hair, a hand, a prop.', paint: true },
 };
 
 let counter = 0;
@@ -208,7 +227,7 @@ export const defaultMotion = (): Motion => ({
   blink: { enabled: true, every: 3.6, vary: 0.5, close: 0.075, hold: 0.04, open: 0.17, partial: 0.15, double: 0.12 },
   breath: { period: 3.8 },
   idle: { head: 0.5, body: 0.35 },
-  look: { follow: true, amount: 0.6, wander: 0.35 },
+  look: { follow: false, amount: 0.6, wander: 0.35 },
   voice: { gain: 1, bob: 0.4 },
 });
 
@@ -242,7 +261,8 @@ export function makeZone(type: ZoneType, doc: Doc, at: Vec, index: number): Zone
         ...base, type,
         a: { x: at.x - u * 0.045, y: at.y }, b: { x: at.x + u * 0.045, y: at.y },
         upT: 0, upH: u * 0.03, loT: 0, loH: u * 0.018, upRound: 0.8, loRound: 0.9,
-        band: u * 0.008, loBand: u * 0.002, skin: u * 0.008, meet: 0.12, gaze: 0.6, pair: null,
+        band: u * 0.008, loBand: u * 0.002, skin: u * 0.008, meet: 0.08, gaze: 0.6, pair: null,
+        upPts: [], loPts: [], fill: 'soft', roll: 0.4, box: null, paint: null, ctl: null,
       };
     case 'mouth':
       return {
@@ -251,7 +271,9 @@ export function makeZone(type: ZoneType, doc: Doc, at: Vec, index: number): Zone
         bow: 0, openH: u * 0.03, smileH: u * 0.012, reach: u * 0.05, color: '#7a2b33',
       };
     case 'sway':
-      return { ...base, type, mask: null, whole: false, auto: true, anchor: { x: at.x, y: at.y - u * 0.08 }, tip: { x: at.x, y: at.y + u * 0.08 }, ...SWAY_FEELS.Soft };
+      return { ...base, type, mask: null, whole: false, auto: true, anchor: { x: at.x, y: at.y - u * 0.08 }, tip: { x: at.x, y: at.y + u * 0.08 }, path: [], style: 'bend', ...SWAY_FEELS.Soft };
+    case 'hold':
+      return { ...base, type, mask: null, whole: false, auto: false };
     case 'head':
       return { ...base, type, mask: null, whole: false, auto: true, pivot: { x: at.x, y: at.y + u * 0.1 }, turn: 0.6, nod: 0.6, tilt: 0.6 };
     case 'breath':
@@ -259,7 +281,28 @@ export function makeZone(type: ZoneType, doc: Doc, at: Vec, index: number): Zone
   }
 }
 
-export const isPaintZone = (z: Zone): z is SwayZone | HeadZone | BreathZone =>
-  z.type === 'sway' || z.type === 'head' || z.type === 'breath';
+export const isPaintZone = (z: Zone): z is SwayZone | HeadZone | BreathZone | HoldZone =>
+  z.type === 'sway' || z.type === 'head' || z.type === 'breath' || z.type === 'hold';
+
+/** Fill in fields added after a project was saved, so old files keep opening. */
+export function normalizeDoc(doc: Doc): Doc {
+  for (const z of doc.zones) {
+    if (z.type === 'sway') {
+      z.path ??= [];
+      z.style ??= 'bend';
+    } else if (z.type === 'eye') {
+      z.upPts ??= [];
+      z.loPts ??= [];
+      z.fill ??= 'stretch'; // what older projects were tuned with
+      z.roll ??= 0;
+      z.box ??= null;
+      z.paint ??= null;
+      z.ctl ??= null;
+    } else if (z.type === 'mouth') {
+      z.bow ??= 0;
+    }
+  }
+  return doc;
+}
 
 export const zoneHitsLayer = (z: Zone, layerId: string) => z.layers === 'all' || z.layers.includes(layerId);

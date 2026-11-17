@@ -1,4 +1,5 @@
-import { zoneBounds } from '../engine/assets';
+import { images, makeCanvas, zoneBounds } from '../engine/assets';
+import { liftRegion, newRepairLayer } from '../engine/retouch';
 import { axisFrame, mirrorEye } from '../engine/geom';
 import { eyeAxis } from '../engine/rig';
 import { isPaintZone, makeZone, neutralPose, uid, ZONE_INFO, type EyeZone, type ZoneType } from '../engine/types';
@@ -16,6 +17,9 @@ export function addZone(type: ZoneType) {
     y: Math.min(d.height * 0.9, Math.max(d.height * 0.1, (window.innerHeight / 2 - v.panY) / v.zoom)),
   };
   const zone = makeZone(type, d, at, d.zones.filter((z) => z.type === type).length);
+  // on layered art an eye or mouth should only reshape the layers that have artwork there,
+  // not a fringe or accessory that happens to sit in front
+  if ((zone.type === 'eye' || zone.type === 'mouth') && d.layers.length > 1) zone.layers = d.layers.map((l) => l.id);
   s.edit((doc) => { doc.zones.push(zone); });
   s.set({ zoneId: zone.id, mode: 'motion', playing: false, tab: 'motion', tool: ZONE_INFO[type].paint ? 'brush' : 'move' });
 }
@@ -44,6 +48,7 @@ export function mirrorEyeZone(id: string) {
     s.editZone<EyeZone>(partner.id, (z) => {
       Object.assign(z, {
         a: { x: m.a.x + dx, y: m.a.y + dy }, b: { x: m.b.x + dx, y: m.b.y + dy }, upT: m.upT, loT: m.loT,
+        upPts: m.upPts, loPts: m.loPts, fill: eye.fill, roll: eye.roll,
         upH: eye.upH, loH: eye.loH, upRound: eye.upRound, loRound: eye.loRound, band: eye.band, loBand: eye.loBand, skin: eye.skin, meet: eye.meet, gaze: eye.gaze,
       });
     });
@@ -55,7 +60,8 @@ export function mirrorEyeZone(id: string) {
   const mid = axisFrame(eye).mid;
   let axis = hb ? (hb.x0 + hb.x1) / 2 : d.width / 2;
   if (Math.abs(axis - mid.x) < axisFrame(eye).hw * 1.3) axis = mid.x + (mid.x < d.width / 2 ? 1 : -1) * axisFrame(eye).hw * 1.8;
-  const twin: EyeZone = { ...eye, ...mirrorEye(eye, axis), id: uid('zone'), name: `${eye.name} (mirror)`, pair: eye.id };
+  // painted lid skin and marks belong to the artwork under the original eye, so the twin starts clean
+  const twin: EyeZone = { ...eye, ...mirrorEye(eye, axis), id: uid('zone'), name: `${eye.name} (mirror)`, pair: eye.id, box: null, paint: null, ctl: null };
   s.edit((doc) => {
     doc.zones.push(twin);
     const src = doc.zones.find((z) => z.id === id) as EyeZone;
@@ -104,3 +110,69 @@ export function selectMood(id: string) {
 }
 
 export { eyeAxis, isPaintZone };
+
+/** Add an empty paint layer above the selected one, ready for repairs. */
+export function addRepairLayer() {
+  const s = S();
+  const layer = newRepairLayer(s.doc);
+  s.edit((d) => {
+    const i = d.layers.findIndex((l) => l.id === s.layerId);
+    d.layers.splice(i < 0 ? d.layers.length : i + 1, 0, layer);
+  });
+  s.set({ layerId: layer.id, mode: 'artwork', tool: 'brush' });
+  s.toast('Repair layer added. Paint on it without touching the artwork below.');
+}
+
+/** Put back the pixels a layer had before any retouching or lifting. */
+export function restoreLayer(id: string) {
+  S().edit((d) => {
+    const l = d.layers.find((x) => x.id === id);
+    if (l?.original) { l.image = l.original; delete l.original; }
+  });
+}
+
+/** Lift a painted motion onto its own layer, with a filled-in backing underneath. */
+export function liftZone(id: string) {
+  const s = S();
+  const zone = s.doc.zones.find((z) => z.id === id);
+  if (!zone || !isPaintZone(zone)) return;
+  const out = liftRegion(s.doc, zone);
+  if (typeof out === 'string') { s.toast(out, 'error'); return; }
+  s.edit((d) => {
+    const i = d.layers.findIndex((l) => l.id === out.source);
+    const src = d.layers[i];
+    src.original ??= src.image;
+    src.image = out.cut;
+    d.layers.splice(i + 1, 0, out.backing, out.patch);
+    for (const z of d.zones) {
+      if (z.id === id) z.layers = [out.patch.id];
+      else if (z.layers !== 'all' && z.layers.includes(out.source) && z.type !== 'eye' && z.type !== 'mouth' && z.type !== 'hold') z.layers.push(out.backing.id, out.patch.id);
+      else if (z.layers !== 'all' && z.layers.includes(out.source) && z.type === 'hold') z.layers.push(out.backing.id);
+    }
+  });
+  s.toast(`Lifted onto its own layer. The gap behind it was filled in; repaint "${out.backing.name}" if the guess is off.`);
+}
+
+/** Small preview of a layer for the layer list. */
+const thumbs = new Map<string, string>();
+export function layerThumb(imageId: string): string {
+  let t = thumbs.get(imageId);
+  if (t) return t;
+  const img = images.get(imageId);
+  if (!img) return '';
+  const k = Math.min(1, 44 / Math.max(img.w, img.h));
+  const c = makeCanvas(img.w * k, img.h * k);
+  c.getContext('2d')!.drawImage(img.canvas, 0, 0, c.width, c.height);
+  t = c.toDataURL();
+  if (thumbs.size > 200) thumbs.clear();
+  thumbs.set(imageId, t);
+  return t;
+}
+
+export function clearEyePaint(id: string, which: 'paint' | 'ctl' | 'both') {
+  S().editZone<EyeZone>(id, (z) => {
+    if (which !== 'ctl') z.paint = null;
+    if (which !== 'paint') z.ctl = null;
+    if (!z.paint && !z.ctl) z.box = null;
+  });
+}

@@ -1,12 +1,13 @@
 // Pixel data registries. Images are the artwork; masks are the painted
 // "this part moves" washes. Both are immutable once registered: an edit makes
 // a new id, which is what lets undo/redo work by swapping ids in the document.
-import { uid, type Doc, type Layer, type Zone } from './types';
+import { normalizeDoc, uid, type Doc, type Layer, type Zone } from './types';
 
 export interface ImageAsset {
   canvas: HTMLCanvasElement;
   w: number;
   h: number;
+  version: number; // bumped while a brush stroke is live, so the renderer re-uploads
 }
 
 export interface MaskAsset {
@@ -34,7 +35,13 @@ export function registerImage(source: CanvasImageSource, w: number, h: number, i
   const k = Math.min(1, MAX_TEXTURE / Math.max(w, h));
   const canvas = makeCanvas(w * k, h * k);
   canvas.getContext('2d')!.drawImage(source, 0, 0, canvas.width, canvas.height);
-  images.set(id, { canvas, w: canvas.width, h: canvas.height });
+  images.set(id, { canvas, w: canvas.width, h: canvas.height, version: 0 });
+  return id;
+}
+
+/** Register a canvas as-is (no copy, no resize). */
+export function adoptImage(canvas: HTMLCanvasElement, id = uid('img')): string {
+  images.set(id, { canvas, w: canvas.width, h: canvas.height, version: 0 });
   return id;
 }
 
@@ -148,6 +155,15 @@ export function packProject(doc: Doc): ProjectFile {
   for (const l of doc.layers) {
     const a = images.get(l.image);
     if (a && !out.images[l.image]) out.images[l.image] = a.canvas.toDataURL('image/png');
+    const o = l.original ? images.get(l.original) : null;
+    if (o && l.original && !out.images[l.original]) out.images[l.original] = o.canvas.toDataURL('image/png');
+  }
+  for (const z of doc.zones) {
+    if (z.type !== 'eye') continue;
+    for (const id of [z.paint, z.ctl]) {
+      const a = id ? images.get(id) : null;
+      if (a && id) out.images[id] = a.canvas.toDataURL('image/png');
+    }
   }
   for (const z of doc.zones) {
     if ('mask' in z && z.mask) {
@@ -172,5 +188,26 @@ export async function unpackProject(file: ProjectFile): Promise<Doc> {
       registerMask(c, id);
     }),
   ]);
-  return file.doc;
+  return normalizeDoc(file.doc);
+}
+
+/** Drop pixel data that no document state (current or in undo history) still refers to. */
+export function collectGarbage(docs: Doc[]) {
+  const liveImages = new Set<string>();
+  const liveMasks = new Set<string>();
+  for (const d of docs) {
+    for (const l of d.layers) {
+      liveImages.add(l.image);
+      if (l.original) liveImages.add(l.original);
+    }
+    for (const z of d.zones) {
+      if ('mask' in z && z.mask) liveMasks.add(z.mask);
+      if (z.type === 'eye') {
+        if (z.paint) liveImages.add(z.paint);
+        if (z.ctl) liveImages.add(z.ctl);
+      }
+    }
+  }
+  for (const id of images.keys()) if (!liveImages.has(id)) images.delete(id);
+  for (const id of masks.keys()) if (!liveMasks.has(id)) masks.delete(id);
 }

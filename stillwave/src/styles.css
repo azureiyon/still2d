@@ -91,7 +91,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; backgrou
 }
 .seg button:hover { color: var(--text); }
 .seg button.is-on { background: var(--accent); color: var(--accent-ink); }
-.mode-stage .modes button.is-on { background: var(--lamp); }
+
 .seg-small { padding: 2px; background: var(--raised); border-radius: 8px; }
 .seg-small button { padding: 3px 8px; border-radius: 6px; font-size: 12px; }
 
@@ -329,3 +329,20 @@ input[type='color'] { width: 34px; height: 22px; padding: 0; border: 0; backgrou
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ---------- retouch and eye paint tools */
+.pill { max-width: calc(100vw - 660px); flex-wrap: wrap; justify-content: center; }
+.no-panels .pill { max-width: calc(100vw - 80px); }
+.pill-sliders .slider { width: 132px; }
+.pill-seg { margin-left: 6px; }
+.pill-color { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--raised); margin-left: 4px; }
+.pill-color input { width: 22px; height: 22px; }
+.pill-note { color: var(--lamp); font-size: 12.5px; padding: 0 8px; white-space: nowrap; }
+.seg-fill { display: flex; }
+.seg-fill button { flex: 1; padding: 5px 6px; }
+.thumb { width: 26px; height: 26px; object-fit: contain; border-radius: 5px; flex: none; background: conic-gradient(rgba(255,255,255,.08) 25%, transparent 0 50%, rgba(255,255,255,.08) 0 75%, transparent 0) 0 0 / 8px 8px, #2a3046; }
+.btn-quiet { background: transparent; border-style: dashed; color: var(--muted); margin: 10px 0 2px; }
+.btn-quiet:hover { color: var(--text); }
+.format-list { display: grid; gap: 6px; }
+.format-list .format { padding: 9px 11px; }
+.panel .progress { flex: none; margin-top: 6px; height: 36px; }

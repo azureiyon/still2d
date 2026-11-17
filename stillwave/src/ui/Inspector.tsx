@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { isPaintZone, SWAY_FEELS, ZONE_INFO, type Doc, type EyeZone, type Layer, type LidPose, type Zone } from '../engine/types';
 import { eyeSide } from '../engine/rig';
-import { deleteMood, deleteZone, mirrorEyeZone } from '../state/actions';
+import { clearEyePaint, deleteMood, deleteZone, liftZone, mirrorEyeZone, restoreLayer } from '../state/actions';
+import { ExportPanel } from './ExportPanel';
 import { useStore } from '../state/store';
 import { BlinkEditor } from './BlinkEditor';
 import { Icon, IconButton, pct, px, secs, Section, Slider, Toggle } from './controls';
@@ -80,6 +81,13 @@ function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
 
       {zone.type === 'sway' && (
         <>
+          <Section title="How it moves">
+            <div className="seg seg-small seg-fill" role="group" aria-label="Movement style">
+              {([['swing', 'Swing', 'Turns as one piece from the root. Best for stiff shapes, ears, ribbons and lifted patches.'], ['bend', 'Bend', 'Curls more toward the tip, like a hanging lock.'], ['flutter', 'Flutter', 'A bend with a quick, light tip, for wisps and fine strands.']] as const).map(([id, label, hint]) => (
+                <button key={id} className={zone.style === id ? 'is-on' : ''} title={hint} onClick={() => editZone(zone.id, (z) => { if (z.type === 'sway') z.style = id; })}>{label}</button>
+              ))}
+            </div>
+          </Section>
           <Section title="Feel">
             <div className="chips">
               {Object.entries(SWAY_FEELS).map(([name, f]) => {
@@ -93,7 +101,13 @@ function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
             <ZoneSlider zone={zone} prop="breeze" label="Breeze" reset={0.45} hint="Gentle movement even when the head is still" />
             <ZoneSlider zone={zone} prop="ripple" label="Ripple" reset={0.5} hint="How much the tip trails behind the root" />
           </Section>
-          <p className="note">The ring marks the root, which stays put. The diamond marks the tip, which moves most.</p>
+          <p className="note">The ring marks the root, which stays put. The diamond marks the tip. Double-click the dotted line to add a point, so the spine follows a curl.</p>
+          {!zone.whole && zone.mask && (
+            <Section title="Separate it from the picture">
+              <button className="btn" onClick={() => liftZone(zone.id)}>Lift onto its own layer</button>
+              <p className="note">A painted strand drags the pixels beside it. Lifting cuts it out, guesses what was behind, and lets it move freely over the picture.{flat ? '' : ' It lifts from the front-most layer under the paint.'}</p>
+            </Section>
+          )}
         </>
       )}
 
@@ -117,6 +131,10 @@ function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
         </>
       )}
 
+      {zone.type === 'hold' && (
+        <p className="note">Whatever is painted here stays exactly as drawn, however the motions around it pull. Use it for a face behind swaying hair, or the root of a strand. Lifted layers ignore it.</p>
+      )}
+
       {zone.type === 'eye' && <EyeInspector zone={zone} doc={doc} />}
 
       {zone.type === 'mouth' && (
@@ -130,7 +148,7 @@ function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
               <input type="color" value={zone.color} onChange={(e) => editZone(zone.id, (z) => { if (z.type === 'mouth') z.color = e.target.value; }, `${zone.id}.color`)} />
             </label>
           </Section>
-          <p className="note">The mouth opens along the line between the two corner dots; drag the middle dot to bend that line onto the lips. It follows your voice on the Stage, and each mood can hold it open or lift it into a smile.</p>
+          <p className="note">The mouth opens along the line between the two corner dots; drag the middle dot to bend that line onto the lips. Each expression can hold it open or lift it into a smile.</p>
         </>
       )}
 
@@ -140,12 +158,14 @@ function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
 }
 
 function EyeInspector({ zone, doc }: { zone: EyeZone; doc: Doc }) {
+  const edit = useStore((st) => st.editZone);
+  const editZone = (id: string, fn: (z: EyeZone) => void) => edit<EyeZone>(id, fn);
   const u = Math.max(doc.width, doc.height);
   const partner = doc.zones.find((z) => z.id === zone.pair);
   return (
     <>
       <p className="note">
-        Fit the outline to the eye opening, with the dashed line just above the lashes. Then pull the small tab beside the eye down to close the lid by hand.
+        Fit the outline to the eye opening, with the dashed line just above the lashes. Pull the tab beside the eye to close the lid; it stays where you leave it. Double-click a lid line to add a point for tricky shapes.
       </p>
       <div className="row">
         <button className="btn" onClick={() => live.anim.blinkNow()}>Test a blink</button>
@@ -153,23 +173,44 @@ function EyeInspector({ zone, doc }: { zone: EyeZone; doc: Doc }) {
           <Icon name="mirror" size={14} /> {partner ? `Copy to ${partner.name}` : 'Mirror to other eye'}
         </button>
       </div>
+      <Section title="Hidden skin">
+        <div className="seg seg-small seg-fill" role="group" aria-label="How the eyelid skin is made">
+          <button className={zone.fill === 'soft' ? 'is-on' : ''} title="Blends the skin tones just above and below the eye. Clean, and leaves eyebrows and fringe alone." onClick={() => editZone(zone.id, (z) => { z.fill = 'soft'; })}>Blend skin</button>
+          <button className={zone.fill === 'stretch' ? 'is-on' : ''} title="Pulls the strip of skin above the lashes down, keeping its shading and creases." onClick={() => editZone(zone.id, (z) => { z.fill = 'stretch'; })}>Pull skin down</button>
+        </div>
+        <p className="note">Not right for this drawing? Choose <strong>Lid skin</strong> in the tool strip and paint or clone the eyelid yourself. <strong>Lashes</strong> marks stray lashes that should travel, <strong>Keep</strong> protects hair that crosses the eye.</p>
+        {(zone.paint || zone.ctl) && (
+          <div className="row">
+            {zone.paint && <button className="btn btn-small" onClick={() => clearEyePaint(zone.id, 'paint')}>Clear lid skin</button>}
+            {zone.ctl && <button className="btn btn-small" onClick={() => clearEyePaint(zone.id, 'ctl')}>Clear marks</button>}
+          </div>
+        )}
+      </Section>
       <Section title="Lid">
         <ZoneSlider zone={zone} prop="band" label="Lash thickness" min={0} max={u * 0.04} format={px} hint="The lashes that travel down with the lid" />
-        <ZoneSlider zone={zone} prop="skin" label="Skin above" min={1} max={u * 0.05} format={px} hint="The strip of skin that stretches to become the eyelid. Keep it clear of the eyebrow." />
+        <ZoneSlider zone={zone} prop="skin" label="Skin sample" min={1} max={u * 0.05} format={px} hint="How far above the lashes (and below the eye) skin is taken from. Keep it clear of the eyebrow." />
+        <ZoneSlider zone={zone} prop="roll" label="Lash roll" reset={0.4} hint="Lashes thin out as the lid closes, as if tipping away from you" />
         <ZoneSlider zone={zone} prop="loBand" label="Lower lash" min={0} max={u * 0.02} format={px} />
-        <ZoneSlider zone={zone} prop="meet" label="Closing line" reset={0.12} hint="Where the lids meet: low for a natural blink, higher for a squint" />
+        <ZoneSlider zone={zone} prop="meet" label="Lower lid rise" max={0.6} reset={0.08} hint="0% keeps the lower lid still and lets the upper lid do all the travelling" />
       </Section>
       <Section title="Curve">
-        <ZoneSlider zone={zone} prop="upRound" label="Upper roundness" min={0.4} max={1.6} reset={0.8} format={(v) => v.toFixed(2)} />
-        <ZoneSlider zone={zone} prop="loRound" label="Lower roundness" min={0.4} max={1.6} reset={0.9} format={(v) => v.toFixed(2)} />
+        {zone.upPts.length === 0 ? <ZoneSlider zone={zone} prop="upRound" label="Upper roundness" min={0.4} max={1.6} reset={0.8} format={(v) => v.toFixed(2)} /> : <p className="note">The upper lid follows its {zone.upPts.length + 1} points. Double-click a small point to remove it.</p>}
+        {zone.loPts.length === 0 ? <ZoneSlider zone={zone} prop="loRound" label="Lower roundness" min={0.4} max={1.6} reset={0.9} format={(v) => v.toFixed(2)} /> : <p className="note">The lower lid follows its {zone.loPts.length + 1} points.</p>}
       </Section>
       <Section title="Gaze">
         <ZoneSlider zone={zone} prop="gaze" label="Iris travel" reset={0.6} hint="How far the iris slides when the avatar looks around" />
       </Section>
-      <p className="note">This is the {eyeSide(doc, zone) === 'L' ? 'left' : 'right'} eye as you look at the screen. Moods can close each side separately, which is how a wink works.</p>
+      <p className="note">This is the {eyeSide(doc, zone) === 'L' ? 'left' : 'right'} eye as you look at the screen. Expressions can close each side separately, which is how a wink works.</p>
     </>
   );
 }
+
+const LOOKS = [
+  { name: 'Still life', hint: 'Barely there: slow breath, rare blinks', liveliness: 0.45, tempo: 0.8, idle: { head: 0.2, body: 0.15 }, breath: 5, blink: 5.5, breeze: 0.7 },
+  { name: 'Natural', hint: 'A balanced, living portrait', liveliness: 1, tempo: 1, idle: { head: 0.5, body: 0.35 }, breath: 3.8, blink: 3.6, breeze: 1 },
+  { name: 'Lively', hint: 'Bigger, quicker movement', liveliness: 1.5, tempo: 1.25, idle: { head: 0.75, body: 0.5 }, breath: 3, blink: 2.8, breeze: 1.15 },
+  { name: 'Breezy', hint: 'Calm figure, restless hair', liveliness: 1.1, tempo: 0.9, idle: { head: 0.3, body: 0.25 }, breath: 4.2, blink: 4, breeze: 1.6 },
+];
 
 function Rhythm({ doc }: { doc: Doc }) {
   const edit = useStore((s) => s.edit);
@@ -177,6 +218,13 @@ function Rhythm({ doc }: { doc: Doc }) {
   const hasEyes = doc.zones.some((z) => z.type === 'eye');
   return (
     <>
+      <Section title="Start from a look">
+        <div className="chips">
+          {LOOKS.map((k) => (
+            <button key={k.name} className="chip" title={k.hint} onClick={() => edit((d) => { Object.assign(d.motion, { liveliness: k.liveliness, tempo: k.tempo }); d.motion.idle = { ...k.idle }; d.motion.breath.period = k.breath; d.motion.blink.every = k.blink; for (const z of d.zones) if (z.type === 'sway') z.breeze = Math.min(1, Math.max(0, z.breeze * k.breeze)); })}>{k.name}</button>
+          ))}
+        </div>
+      </Section>
       <Section title="Overall">
         <Slider label="Liveliness" value={m.liveliness} min={0} max={2} reset={1} format={pct} onChange={(v) => edit((d) => { d.motion.liveliness = v; }, 'liveliness')} hint="One dial for how much everything moves" />
         <Slider label="Tempo" value={m.tempo} min={0.4} max={2} reset={1} format={(v) => `${v.toFixed(2)}×`} onChange={(v) => edit((d) => { d.motion.tempo = v; }, 'tempo')} hint="How quickly the avatar breathes, blinks and drifts" />
@@ -196,11 +244,9 @@ function Rhythm({ doc }: { doc: Doc }) {
         <Slider label="Body sway" value={m.idle.body} reset={0.35} format={pct} onChange={(v) => edit((d) => { d.motion.idle.body = v; }, 'idle.body')} />
       </Section>
       <Section title="Looking">
-        <Toggle label="Follow the pointer" value={m.look.follow} onChange={(v) => edit((d) => { d.motion.look.follow = v; })} />
-        <Slider label="How far" value={m.look.amount} reset={0.6} format={pct} onChange={(v) => edit((d) => { d.motion.look.amount = v; }, 'look.amount')} />
-        <Slider label="Wandering gaze" value={m.look.wander} reset={0.35} format={pct} onChange={(v) => edit((d) => { d.motion.look.wander = v; }, 'look.wander')} hint="Small glances when there is no pointer to follow" />
+        <Slider label="Wandering gaze" value={m.look.wander} reset={0.35} format={pct} onChange={(v) => edit((d) => { d.motion.look.wander = v; }, 'look.wander')} hint="Small, slow glances to either side" />
       </Section>
-      <Section title="Mood changes">
+      <Section title="Expression changes">
         <Slider label="Transition" value={m.transition} min={0.08} max={1.5} step={0.01} reset={0.35} format={secs} onChange={(v) => edit((d) => { d.motion.transition = v; }, 'transition')} />
       </Section>
     </>
@@ -226,10 +272,10 @@ function MoodInspector({ doc }: { doc: Doc }) {
   return (
     <>
       <div className="insp-title">
-        <input className="name-input" value={mood.name} aria-label="Mood name" onChange={(e) => change((m) => { m.name = e.target.value; }, 'name')} />
-        <IconButton icon="trash" label="Delete this mood" small disabled={doc.expressions.length <= 1} onClick={() => deleteMood(mood.id)} />
+        <input className="name-input" value={mood.name} aria-label="Expression name" onChange={(e) => change((m) => { m.name = e.target.value; }, 'name')} />
+        <IconButton icon="trash" label="Delete this expression" small disabled={doc.expressions.length <= 1} onClick={() => deleteMood(mood.id)} />
       </div>
-      <p className="note">A mood is a held pose. Blinking, breathing and sway carry on over the top of it.</p>
+      <p className="note">An expression is a held pose. Blinking, breathing and sway carry on over the top of it.</p>
       <Section title="Eyes" aside={<Toggle label="Both together" value={both} onChange={setBoth} />}>
         {both ? (
           <>{lid('eyeL', 'upper', 'Upper lid')}{lid('eyeL', 'lower', 'Lower lid')}{lid('eyeL', 'arc', 'Closing curve', -1)}</>
@@ -250,15 +296,15 @@ function MoodInspector({ doc }: { doc: Doc }) {
         {num('nod', 'Nod', -1)}
       </Section>
       {doc.layers.length > 1 && (
-        <Section title="Layers in this mood">
-          <p className="note">Swap in a blush, a different mouth or closed-eye artwork for this mood only.</p>
+        <Section title="Layers in this expression">
+          <p className="note">Swap in a blush, a different mouth or closed-eye artwork for this expression only.</p>
           <div className="checks">
             {[...doc.layers].reverse().map((l) => {
               const state = l.id in mood.layers ? (mood.layers[l.id] ? 'show' : 'hide') : 'same';
               return (
                 <div key={l.id} className="tri">
                   <span>{l.name}</span>
-                  <div className="seg seg-small" role="group" aria-label={`${l.name} in this mood`}>
+                  <div className="seg seg-small" role="group" aria-label={`${l.name} in this expression`}>
                     {(['same', 'show', 'hide'] as const).map((o) => (
                       <button key={o} className={state === o ? 'is-on' : ''} onClick={() => change((m) => { if (o === 'same') delete m.layers[l.id]; else m.layers[l.id] = o === 'show'; }, 'layers')}>
                         {o === 'same' ? 'As is' : o === 'show' ? 'Show' : 'Hide'}
@@ -292,12 +338,20 @@ function LayerInspector({ layer, doc }: { layer: Layer | undefined; doc: Doc }) 
             <Slider label="Rotation" value={(layer.rotation * 180) / Math.PI} min={-180} max={180} step={1} reset={0} format={(v) => `${Math.round(v)}°`} onChange={(v) => upd((l) => { l.rotation = (v * Math.PI) / 180; }, 'rot')} />
             <Slider label="Opacity" value={layer.opacity} reset={1} format={pct} onChange={(v) => upd((l) => { l.opacity = v; }, 'opacity')} />
           </Section>
+          {(layer.original || layer.role) && (
+            <Section title="Retouching">
+              {layer.role === 'repair' && <p className="note">A repair layer. Paint, clone or erase on it freely; the artwork underneath is never changed.</p>}
+              {layer.role === 'backing' && <p className="note">This fills the gap left by a lifted piece. It was guessed from the surrounding colours; repaint it if the guess is off.</p>}
+              {layer.role === 'lifted' && <p className="note">Lifted out of the picture so it can move on its own. Erase any halo of background that came with it.</p>}
+              {layer.original && <button className="btn" onClick={() => restoreLayer(layer.id)}>Restore original pixels</button>}
+            </Section>
+          )}
           <Section title="Depth">
             <Slider label="Near or far" value={layer.depth} min={-1} max={1} reset={0} format={(v) => (Math.abs(v) < 0.02 ? 'Middle' : v > 0 ? `Near ${Math.round(v * 100)}` : `Far ${Math.round(-v * 100)}`)} onChange={(v) => upd((l) => { l.depth = v; }, 'depth')} hint="Near layers slide further when the head turns, which fakes a little 3D" />
           </Section>
         </>
       ) : (
-        <p className="note">Click a piece of artwork to move, resize or rotate it.</p>
+        <p className="note">Click a piece of artwork to move, resize or rotate it. Pick the brush, clone or eraser above the canvas to retouch the selected layer.</p>
       )}
       <Section title="Artboard">
         <p className="note">{doc.width} × {doc.height} px, {doc.layers.length} layer{doc.layers.length === 1 ? '' : 's'}</p>
@@ -311,55 +365,6 @@ function LayerInspector({ layer, doc }: { layer: Layer | undefined; doc: Doc }) 
   );
 }
 
-function StageInspector({ doc }: { doc: Doc }) {
-  const edit = useStore((s) => s.edit);
-  const set = useStore((s) => s.set);
-  const voiceOn = useStore((s) => s.voiceOn);
-  const toast = useStore((s) => s.toast);
-  const m = doc.motion;
-  const toggleVoice = async (on: boolean) => {
-    if (!on) { live.voice.stop(); set({ voiceOn: false }); return; }
-    try { await live.voice.start(); set({ voiceOn: true }); }
-    catch { toast('The microphone is not available. Check the browser permission for this page.', 'error'); }
-  };
-  const swatches = ['transparent', '#00ff00', '#ff00ff', '#1b2030', '#f4f1ea', '#bcd7ff'];
-  return (
-    <>
-      <div className="insp-title"><h2>Stage</h2></div>
-      <p className="note">Your avatar, live. Number keys switch moods, a click gives it a nudge.</p>
-      <Section title="Backdrop">
-        <div className="swatches">
-          {swatches.map((c) => (
-            <button key={c} className={`bg-swatch${doc.stage.background === c ? ' is-on' : ''}${c === 'transparent' ? ' is-clear' : ''}`} style={c === 'transparent' ? undefined : { background: c }} aria-label={c === 'transparent' ? 'Transparent backdrop' : `Backdrop ${c}`} title={c === 'transparent' ? 'Transparent' : c} onClick={() => edit((d) => { d.stage.background = c; })} />
-          ))}
-          <label className="bg-swatch bg-pick" title="Pick a colour">
-            <input type="color" value={doc.stage.background === 'transparent' ? '#808080' : doc.stage.background} onChange={(e) => edit((d) => { d.stage.background = e.target.value; }, 'stage.bg')} />
-          </label>
-        </div>
-        <p className="note">Green or magenta suits chroma-keying a window capture.</p>
-      </Section>
-      <Section title="Voice">
-        <Toggle label="Mouth follows the microphone" value={voiceOn} onChange={toggleVoice} />
-        {voiceOn && <VoiceMeter />}
-        <Slider label="Sensitivity" value={m.voice.gain} min={0.3} max={3} reset={1} format={(v) => `${v.toFixed(1)}×`} onChange={(v) => edit((d) => { d.motion.voice.gain = v; }, 'voice.gain')} />
-        <Slider label="Head bob when talking" value={m.voice.bob} reset={0.4} format={pct} onChange={(v) => edit((d) => { d.motion.voice.bob = v; }, 'voice.bob')} />
-        {!doc.zones.some((z) => z.type === 'mouth') && <p className="note">Add a Mouth motion for this to have something to move.</p>}
-      </Section>
-      <Section title="Presence">
-        <Toggle label="Follow the pointer" value={m.look.follow} onChange={(v) => edit((d) => { d.motion.look.follow = v; })} />
-        <Slider label="Liveliness" value={m.liveliness} min={0} max={2} reset={1} format={pct} onChange={(v) => edit((d) => { d.motion.liveliness = v; }, 'liveliness')} />
-      </Section>
-      <button className="btn btn-primary btn-wide" onClick={() => set({ exportOpen: true })}><Icon name="export" size={15} /> Export avatar</button>
-    </>
-  );
-}
-
-function VoiceMeter() {
-  const [, tick] = useState(0);
-  useEffect(() => { const id = setInterval(() => tick((n) => n + 1), 60); return () => clearInterval(id); }, []);
-  return <div className="meter" aria-hidden="true"><div style={{ transform: `scaleX(${Math.min(1, live.voiceLevel)})` }} /></div>;
-}
-
 export function Inspector() {
   const doc = useStore((s) => s.doc);
   const mode = useStore((s) => s.mode);
@@ -370,12 +375,12 @@ export function Inspector() {
   const zone = doc.zones.find((z) => z.id === zoneId);
 
   if (mode === 'artwork') return <aside className="panel panel-right" aria-label="Layer settings"><div className="panel-scroll"><LayerInspector layer={doc.layers.find((l) => l.id === layerId)} doc={doc} /></div></aside>;
-  if (mode === 'stage') return <aside className="panel panel-right" aria-label="Stage settings"><div className="panel-scroll"><StageInspector doc={doc} /></div></aside>;
+  if (mode === 'stage') return <aside className="panel panel-right" aria-label="Export settings"><div className="panel-scroll"><ExportPanel /></div></aside>;
 
   return (
     <aside className="panel panel-right" aria-label="Motion settings">
       <div className="tabs" role="tablist">
-        {([['motion', 'Motion'], ['rhythm', 'Rhythm'], ['mood', 'Mood']] as const).map(([id, label]) => (
+        {([['motion', 'Motion'], ['rhythm', 'Rhythm'], ['mood', 'Expression']] as const).map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'is-on' : ''} onClick={() => set({ tab: id })}>{label}</button>
         ))}
       </div>

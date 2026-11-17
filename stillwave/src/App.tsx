@@ -5,7 +5,6 @@ import { useStore } from './state/store';
 import { deleteZone } from './state/actions';
 import { isPaintZone } from './engine/types';
 import { MoodDock, ToolPill } from './ui/Dock';
-import { ExportDialog } from './ui/ExportDialog';
 import { Inspector } from './ui/Inspector';
 import { LeftPanel } from './ui/LeftPanel';
 import { Stage } from './ui/Stage';
@@ -22,22 +21,26 @@ function useShortcuts() {
       if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? s.redo() : s.undo(); return; }
       if (mod && k === 'y') { e.preventDefault(); s.redo(); return; }
       if (mod && k === 's') { e.preventDefault(); void saveProject(); return; }
-      if (mod && k === 'e') { e.preventDefault(); s.set({ exportOpen: true }); return; }
-      if (typing || mod || s.exportOpen || !s.doc.layers.length) return;
+      if (mod && k === 'e') { e.preventDefault(); s.setMode('stage'); return; }
+      if (typing || mod || !s.doc.layers.length) return;
       if (k === 'tab') { e.preventDefault(); s.set({ panels: !s.panels }); return; }
       if (k === 'f') { s.set({ viewNonce: s.viewNonce + 1 }); return; }
       const n = Number(e.key);
       if (n >= 1 && n <= 9 && s.mode !== 'artwork' && s.doc.expressions[n - 1]) { s.set({ exprId: s.doc.expressions[n - 1].id }); return; }
-      if (s.mode !== 'motion') return;
-      const zone = s.doc.zones.find((z) => z.id === s.zoneId);
-      const paintable = !!zone && isPaintZone(zone) && !zone.whole;
+      if (s.mode === 'stage') return;
+      const zone = s.mode === 'motion' ? s.doc.zones.find((z) => z.id === s.zoneId) : undefined;
+      const onMask = !!zone && isPaintZone(zone) && !zone.whole;
+      const onEye = zone?.type === 'eye';
+      const onLayer = s.mode === 'artwork' && !!s.layerId;
+      const paintable = onMask || onEye || onLayer;
       if (k === 'v') s.set({ tool: 'move' });
       if (k === 'b' && paintable) s.set({ tool: 'brush', playing: false });
       if (k === 'e' && paintable) s.set({ tool: 'erase', playing: false });
-      if (k === '[') s.set({ brush: { ...s.brush, size: Math.max(4, s.brush.size * 0.85) } });
+      if (k === 'c' && (onLayer || (onEye && s.eyeLayer === 'skin'))) s.set({ tool: 'clone', playing: false });
+      if (k === '[') s.set({ brush: { ...s.brush, size: Math.max(2, s.brush.size * 0.85) } });
       if (k === ']') s.set({ brush: { ...s.brush, size: s.brush.size * 1.18 } });
       if ((k === 'delete' || k === 'backspace') && zone && !s.playing) deleteZone(zone.id);
-      if (k === 'escape') s.set({ zoneId: null, tool: 'move' });
+      if (k === 'escape') s.set(s.tool !== 'move' ? { tool: 'move' } : { zoneId: null });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -86,7 +89,6 @@ export function App() {
           <MoodDock />
         </>
       )}
-      <ExportDialog />
       {dropping && <div className="drop-veil"><span>Drop to add artwork</span></div>}
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => <div key={t.id} className={`toast toast-${t.tone}`}>{t.text}</div>)}

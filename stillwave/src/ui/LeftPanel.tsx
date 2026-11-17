@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ZONE_INFO, type ZoneType } from '../engine/types';
 import { ARTWORK_TYPES, importFiles, pickFiles } from '../io/import';
-import { addZone, deleteLayer, moveLayer } from '../state/actions';
+import { addRepairLayer, addZone, deleteLayer, layerThumb, moveLayer } from '../state/actions';
 import { useStore } from '../state/store';
 import { Icon, IconButton } from './controls';
 
@@ -21,8 +21,9 @@ function Layers() {
           {[...doc.layers].reverse().map((l, i, arr) => (
             <li key={l.id} className={`item${l.id === layerId ? ' is-selected' : ''}${l.visible ? '' : ' is-off'}`}>
               <button className="item-main" onClick={() => set({ layerId: l.id })}>
-                <Icon name="image" size={15} />
+                <img className="thumb" src={layerThumb(l.image)} alt="" />
                 <span className="item-name">{l.name}</span>
+                {l.role && <span className="item-kind">{l.role === 'repair' ? 'Repair' : l.role === 'backing' ? 'Backing' : 'Lifted'}</span>}
               </button>
               <span className="item-actions">
                 <IconButton small icon="up" label="Bring forward" disabled={i === 0} onClick={() => moveLayer(l.id, 1)} />
@@ -33,7 +34,8 @@ function Layers() {
             </li>
           ))}
         </ul>
-        <p className="note">Drop PNG or PSD files anywhere to add them. The top of this list is the front of the picture.</p>
+        <button className="btn btn-wide btn-quiet" onClick={addRepairLayer}><Icon name="brush" size={14} /> Add a repair layer</button>
+        <p className="note">Drop PNG or PSD files anywhere to add them. The top of this list is the front of the picture. A repair layer is an empty sheet for painting over problems without changing the artwork.</p>
       </div>
     </>
   );
@@ -46,7 +48,7 @@ function Motions() {
   const set = useStore((s) => s.set);
   const editZone = useStore((s) => s.editZone);
   const [adding, setAdding] = useState(false);
-  const types: ZoneType[] = ['eye', 'mouth', 'head', 'sway', 'breath'];
+  const types: ZoneType[] = ['eye', 'mouth', 'head', 'sway', 'breath', 'hold'];
   return (
     <>
       <header className="panel-head">
