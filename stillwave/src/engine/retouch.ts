@@ -271,18 +271,22 @@ export function liftRegion(doc: Doc, zone: Zone): LiftResult | string {
     const si = (y + y0) * W + (x + x0), di = y * w + x;
     const m = matte[si];
     for (let ch = 0; ch < 4; ch++) crop[di * 4 + ch] = srcData.data[si * 4 + ch];
-    known[di] = 1 - smooth(0.02, 0.1, m);
-    const pa = smooth(0.3, 0.65, m);
+    // The cut follows the middle of the brush falloff with a one-pixel soft edge.
+    // Patch and hole use the same matte, so at rest the pieces add back up to the
+    // original: the guessed backing only ever shows where the patch has moved away.
+    const edge = smooth(0.44, 0.56, m);
+    known[di] = 1 - smooth(0.3, 0.44, m);
     patch.data[di * 4] = crop[di * 4]; patch.data[di * 4 + 1] = crop[di * 4 + 1]; patch.data[di * 4 + 2] = crop[di * 4 + 2];
-    patch.data[di * 4 + 3] = crop[di * 4 + 3] * pa;
-    hole[di] = smooth(0.12, 0.4, m);
-    cut.data[si * 4 + 3] = srcData.data[si * 4 + 3] * (1 - hole[di]);
+    patch.data[di * 4 + 3] = crop[di * 4 + 3] * edge;
+    hole[di] = edge;
+    cut.data[si * 4 + 3] = srcData.data[si * 4 + 3] * (1 - edge);
   }
   const filled = inpaint(crop, w, h, known);
   const backing = new ImageData(w, h);
   for (let i = 0; i < w * h; i++) {
     backing.data[i * 4] = filled[i * 4]; backing.data[i * 4 + 1] = filled[i * 4 + 1]; backing.data[i * 4 + 2] = filled[i * 4 + 2];
-    backing.data[i * 4 + 3] = filled[i * 4 + 3] * hole[i];
+    // only fill where the original had paint: empty background stays empty
+    backing.data[i * 4 + 3] = filled[i * 4 + 3] * hole[i] * (crop[i * 4 + 3] / 255);
   }
   const toCanvas = (d: ImageData) => { const c = makeCanvas(d.width, d.height); c.getContext('2d')!.putImageData(d, 0, 0); return c; };
   // place the crops where they came from, following the source layer's own transform

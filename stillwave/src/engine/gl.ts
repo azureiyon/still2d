@@ -95,7 +95,9 @@ vec2 eyeWarp(vec2 p,int i){
   // where lid skin shows: between the moving lash line and where the lashes used to be
   // the fill fades into the untouched skin above it instead of ending in a line
   float topEdge=soft?1.-smoothstep(U+B*.5,U+B+S,y):1.-smoothstep(U+B-1.,U+B+.5,y);
-  float cover=step(Uc,y)*topEdge*moved;
+  // above the original lid line, ease out toward the corners so the patch has no hard end
+  float corner=y>U?1.-smoothstep(.78,1.,abs(t)):1.;
+  float cover=step(Uc,y)*topEdge*moved*corner;
   vec4 marks=hasMarks?eyePaint(i,p,1.):vec4(0.);
   cover=max(cover,marks.g*moved);
   vec4 paint=hasPaint?eyePaint(i,p,0.):vec4(0.);
@@ -120,6 +122,17 @@ vec2 eyeWarp(vec2 p,int i){
     above/=wsum;
     float k=clamp((y-Lw)/max(U+B+S-Lw,1.),0.,1.);
     vec4 fill=mix(below,above,smoothstep(0.,1.,k));
+    // Borrow the brushwork of the skin just above the lashes, so the fill is not
+    // a flat airbrushed patch: its fine detail (sharp minus blurred) rides on the
+    // blended colour. Skipped where that skin is really hair or brow.
+    // The sample folds back and forth inside the skin strip above the lashes,
+    // so it never reaches up into a brow or fringe.
+    float fold=abs(mod(max(U+B-y,0.),2.*S)-S);
+    vec2 dpos=along+n*(U+B+clear+fold);
+    vec4 sharp=art(dpos), blur=artSoft(dpos);
+    vec3 dh=blur.rgb/max(blur.r+blur.g+blur.b,.001)-ref, ds=sharp.rgb/max(sharp.r+sharp.g+sharp.b,.001)-ref;
+    float like=exp(-max(dot(dh,dh),dot(ds,ds))*260.);
+    fill.rgb+=clamp(sharp.rgb-blur.rgb,-.12,.12)*fill.a*like*.9;
     gPlate=paint+fill*(1.-paint.a); gReplace=1.;
   } else { gPlate=paint; gReplace=0.; }
   gCover=cover;
@@ -194,7 +207,7 @@ interface LayerMesh {
   weights: Map<string, { key: string; w: Float32Array | null }>;
   binds: Map<string, SwayBind>;
   // scratch for blending overlapping sways
-  sx: Float32Array; sy: Float32Array; sw: Float32Array; un: Float32Array;
+  sx: Float32Array; sy: Float32Array; sw: Float32Array;
   edgeX: number; edgeY: number;
 }
 
@@ -210,6 +223,7 @@ export function cssToRgb(c: string): [number, number, number] {
 }
 
 const SPINE_STEPS = 32;
+const SWAY_LEVELS = 6;
 const CELL = 256; // eye paint cell size in the atlas
 export const MAX_EYES = 8;
 
@@ -234,6 +248,10 @@ export class Renderer {
   private atlasKey = '';
   private atlasCanvas: HTMLCanvasElement | null = null;
   private paintLayer = new Map<string, { key: string; layer: string | null }>();
+  private spineX = new Float32Array((SWAY_LEVELS + 1) * (SPINE_STEPS + 1));
+  private spineY = new Float32Array((SWAY_LEVELS + 1) * (SPINE_STEPS + 1));
+  private tmpA = new Float32Array(2);
+  private tmpB = new Float32Array(2);
   /** Vertices the fold guard had to correct in the last frame. */
   guarded = 0;
 
@@ -361,7 +379,7 @@ export class Renderer {
     m = {
       key, cols, rows, rest, pos: new Float32Array(rest), restBuf, posBuf, idxBuf, wireBuf, idxCount: idx.length, wireCount: wire.length, vao,
       weights: new Map(), binds: new Map(),
-      sx: new Float32Array(n), sy: new Float32Array(n), sw: new Float32Array(n), un: new Float32Array(n),
+      sx: new Float32Array(n), sy: new Float32Array(n), sw: new Float32Array(n),
       edgeX: (l.w * l.scale) / cols, edgeY: (l.h * l.scale) / rows,
     };
     this.meshes.set(l.id, m);
@@ -437,30 +455,42 @@ export class Renderer {
       const w = this.weights(doc, m, z);
       const turn = f.sway[z.id];
       if (!w || !turn) continue;
-      if (!sways++) { m.sx.fill(0); m.sy.fill(0); m.sw.fill(0); m.un.fill(1); }
+      if (!sways++) { m.sx.fill(0); m.sy.fill(0); m.sw.fill(0); }
       if (!z.whole) painted = true;
       const spine = swaySpine(z);
       const b = this.bind(m, z);
-      // walk the spine, turning each stretch by its angle
-      const qx = new Float32Array(SPINE_STEPS + 1), qy = new Float32Array(SPINE_STEPS + 1), ang = new Float32Array(SPINE_STEPS + 1);
-      let prev = spineAt(spine, 0);
-      qx[0] = prev.x; qy[0] = prev.y;
+      // Walk the spine at several strengths. A vertex's paint weight picks how
+      // much of the turn it gets (scaling the angle, not blending positions),
+      // so the soft edge of a painted strand twists gently instead of smearing.
       const angleAt = (at: number) => {
         const fi = Math.min(1, Math.max(0, at)) * SWAY_SAMPLES;
         const i0 = Math.min(SWAY_SAMPLES - 1, Math.floor(fi));
         return turn[i0] + (turn[i0 + 1] - turn[i0]) * (fi - i0);
       };
-      for (let k = 1; k <= SPINE_STEPS; k++) {
-        const next = spineAt(spine, k / SPINE_STEPS);
-        const a = angleAt((k - 0.5) / SPINE_STEPS);
-        const c = Math.cos(a), s = Math.sin(a);
-        const dx = next.x - prev.x, dy = next.y - prev.y;
-        qx[k] = qx[k - 1] + dx * c - dy * s;
-        qy[k] = qy[k - 1] + dx * s + dy * c;
-        ang[k - 1] = a;
-        prev = next;
+      const LV = SWAY_LEVELS;
+      const stride = SPINE_STEPS + 1;
+      const qx = this.spineX, qy = this.spineY;
+      for (let lv = 0; lv <= LV; lv++) {
+        const g = lv / LV;
+        let prev = spineAt(spine, 0);
+        qx[lv * stride] = prev.x; qy[lv * stride] = prev.y;
+        for (let k = 1; k <= SPINE_STEPS; k++) {
+          const next = spineAt(spine, k / SPINE_STEPS);
+          const a = angleAt((k - 0.5) / SPINE_STEPS) * g;
+          const c = Math.cos(a), s = Math.sin(a);
+          const dx = next.x - prev.x, dy = next.y - prev.y;
+          qx[lv * stride + k] = qx[lv * stride + k - 1] + dx * c - dy * s;
+          qy[lv * stride + k] = qy[lv * stride + k - 1] + dx * s + dy * c;
+          prev = next;
+        }
       }
-      ang[SPINE_STEPS] = ang[SPINE_STEPS - 1];
+      const place = (lv: number, k: number, u: number, a: number, ox: number, oy: number, out: Float32Array) => {
+        const o = lv * stride + k;
+        const c = Math.cos(a), s = Math.sin(a);
+        out[0] = qx[o] + (qx[o + 1] - qx[o]) * u + ox * c - oy * s;
+        out[1] = qy[o] + (qy[o + 1] - qy[o]) * u + ox * s + oy * c;
+      };
+      const p0 = this.tmpA, p1 = this.tmpB;
       for (let i = 0; i < n; i++) {
         const wi = w[i];
         if (wi <= 0.003) continue;
@@ -468,22 +498,22 @@ export class Renderer {
         const k = Math.min(SPINE_STEPS - 1, Math.floor(fk));
         const u = fk - k;
         const a = angleAt(b.at[i]);
-        const c = Math.cos(a), s = Math.sin(a);
         const ox = rest[i * 2] - b.cx[i], oy = rest[i * 2 + 1] - b.cy[i];
-        const nx = qx[k] + (qx[k + 1] - qx[k]) * u + ox * c - oy * s;
-        const ny = qy[k] + (qy[k + 1] - qy[k]) * u + ox * s + oy * c;
+        const fl = wi * LV, l0 = Math.min(LV - 1, Math.floor(fl)), t = fl - l0;
+        place(l0, k, u, (a * l0) / LV, ox, oy, p0);
+        place(l0 + 1, k, u, (a * (l0 + 1)) / LV, ox, oy, p1);
+        const nx = p0[0] + (p1[0] - p0[0]) * t, ny = p0[1] + (p1[1] - p0[1]) * t;
         // overlapping sways share a vertex by weight instead of adding up
         const w2 = wi * wi;
         m.sx[i] += (nx - rest[i * 2]) * w2;
         m.sy[i] += (ny - rest[i * 2 + 1]) * w2;
         m.sw[i] += w2;
-        m.un[i] *= 1 - wi;
       }
     }
     if (sways) {
       for (let i = 0; i < n; i++) {
         if (m.sw[i] <= 0) continue;
-        const k = (1 - m.un[i]) / m.sw[i];
+        const k = 1 / m.sw[i]; // each displacement already carries its own weight
         pos[i * 2] += m.sx[i] * k;
         pos[i * 2 + 1] += m.sy[i] * k;
       }
