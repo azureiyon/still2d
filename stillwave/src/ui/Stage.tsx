@@ -2,15 +2,18 @@
 // handles on top, and every direct-manipulation gesture.
 import { useEffect, useRef } from 'react';
 import { adoptImage, images, layerCorners, makeCanvas, maskBounds, masks, registerMask, sampleMask, zoneBounds } from '../engine/assets';
-import { axisFrame, eyeBox, eyeContains, eyeOutline, lidLo, lidUp, mouthContains, spineBind, swaySpine } from '../engine/geom';
+import { axisFrame, chainAt, chainMove, chainRemove, chainSplit, eyeBox, eyeContains, eyeLut, eyeOutline, lidBand, lidLo, lidSkin, lidUp, mouthContains, spineBind, swaySpine } from '../engine/geom';
 import { fitView, Renderer } from '../engine/gl';
 import { beginMask, strokeSegment } from '../engine/paint';
 import { boxAffine, compositeRest, layerAffine, pickColor, Stroke } from '../engine/retouch';
-import { isPaintZone, ZONE_INFO, type Doc, type EyeZone, type Layer, type MouthZone, type Vec, type Zone } from '../engine/types';
+import { isPaintZone, ZONE_INFO, type Doc, type EyeCurve, type EyeZone, type Layer, type MouthZone, type Vec, type Zone } from '../engine/types';
 import { useStore } from '../state/store';
 import { live } from './live';
+import { CURVE_COLOR } from './curveColors';
 
-interface Handle { id: string; x: number; y: number; shape?: 'dot' | 'ring' | 'diamond' | 'lid' | 'small' }
+interface Handle { id: string; x: number; y: number; shape?: 'dot' | 'ring' | 'diamond' | 'lid' | 'small' | 'square'; color?: string }
+const CURVES: EyeCurve[] = ['skin', 'band', 'up', 'lo'];
+const fixedEnds = (c: EyeCurve) => c === 'up' || c === 'lo';
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; panX: number; panY: number }
@@ -43,7 +46,7 @@ function layerHit(l: Layer, p: Vec): boolean {
 
 const cl = (t: number) => Math.min(0.85, Math.max(-0.85, t));
 
-function zoneHandles(z: Zone, zoom: number, hold: number): Handle[] {
+function zoneHandles(z: Zone, zoom: number, hold: number, nodeSel: string | null = null): Handle[] {
   if (z.type === 'sway') {
     return [{ id: 'anchor', ...z.anchor, shape: 'ring' }, ...z.path.map((p, i) => ({ id: `p${i}`, ...p, shape: 'small' as const })), { id: 'tip', ...z.tip, shape: 'diamond' }];
   }
@@ -55,6 +58,24 @@ function zoneHandles(z: Zone, zoom: number, hold: number): Handle[] {
     return [{ id: 'a', ...z.a }, { id: 'b', ...z.b }, { id: 'bow', ...f.at(0, z.bow) }, { id: 'open', ...f.at(0, z.bow - Math.max(z.openH, 14 / zoom)), shape: 'diamond' }];
   }
   const lidX = 1 + 22 / zoom / f.hw;
+  const lut = eyeLut(z);
+  const tab: Handle = { id: 'lid', ...f.at(lidX, lut.hU - (lut.hU + lut.hL) * hold), shape: 'lid' };
+  if (z.edit === 'precise' && z.curves) {
+    const out: Handle[] = [{ id: 'a', ...z.a }, { id: 'b', ...z.b }];
+    const at = (c: EyeCurve, t: number, y: number) => f.at(t, c === 'lo' ? -y : y);
+    for (const c of CURVES) {
+      z.curves[c].forEach((n, i, all) => {
+        if (fixedEnds(c) && (i === 0 || i === all.length - 1)) return;
+        if (nodeSel === `${c}:${i}`) {
+          if (i > 0) out.push({ id: `H:${c}:${i}:i`, ...at(c, n.it, n.iy), shape: 'square', color: CURVE_COLOR[c] });
+          if (i < all.length - 1) out.push({ id: `H:${c}:${i}:o`, ...at(c, n.ot, n.oy), shape: 'square', color: CURVE_COLOR[c] });
+        }
+        out.push({ id: `N:${c}:${i}`, ...at(c, n.t, n.y), shape: 'small', color: nodeSel === `${c}:${i}` ? '#ffffff' : CURVE_COLOR[c] });
+      });
+    }
+    out.push(tab);
+    return out;
+  }
   return [
     { id: 'a', ...z.a }, { id: 'b', ...z.b },
     { id: 'up', ...f.at(cl(z.upT * f.flip), z.upH) },
@@ -62,11 +83,11 @@ function zoneHandles(z: Zone, zoom: number, hold: number): Handle[] {
     ...z.upPts.map((p, i) => ({ id: `u${i}`, ...f.at(p.t * f.flip, p.y), shape: 'small' as const })),
     ...z.loPts.map((p, i) => ({ id: `l${i}`, ...f.at(p.t * f.flip, -p.y), shape: 'small' as const })),
     { id: 'band', ...f.at(cl(z.upT * f.flip), z.upH + z.band + 10 / zoom), shape: 'diamond' },
-    { id: 'lid', ...f.at(lidX, z.upH - (z.upH + z.loH) * hold), shape: 'lid' },
+    tab,
   ];
 }
 
-function applyHandle(z: Zone, handle: string, p: Vec) {
+function applyHandle(z: Zone, handle: string, p: Vec, broken = false) {
   if (z.type === 'sway') {
     if (handle === 'anchor') z.anchor = p; else if (handle === 'tip') z.tip = p; else z.path[Number(handle.slice(1))] = p;
     z.auto = false;
@@ -79,6 +100,12 @@ function applyHandle(z: Zone, handle: string, p: Vec) {
   const f = axisFrame(z);
   const { t, y } = f.local(p);
   if (z.type === 'mouth') { if (handle === 'open') z.openH = Math.max(4, z.bow - y); if (handle === 'bow') z.bow = y; return; }
+  if ((handle[0] === 'N' || handle[0] === 'H') && handle[1] === ':' && z.curves) {
+    const [kind, c, si, part] = handle.split(':') as [string, EyeCurve, string, 'i' | 'o' | undefined];
+    const i = Number(si);
+    z.curves[c] = chainMove(z.curves[c], i, kind === 'N' ? 'n' : part!, t, c === 'lo' ? -y : y, fixedEnds(c), broken);
+    return;
+  }
   const tt = Math.min(0.8, Math.max(-0.8, t)) * f.flip;
   if (handle === 'up') { z.upT = tt; z.upH = Math.max(2, y); }
   else if (handle === 'lo') { z.loT = tt; z.loH = Math.max(1, -y); }
@@ -97,7 +124,7 @@ export function Stage() {
     const el = wrap.current!, glCanvas = glRef.current!, ov = ovRef.current!, board = boardRef.current!;
     let renderer: Renderer;
     try {
-      renderer = new Renderer(glCanvas);
+      renderer = new Renderer(glCanvas, true);
     } catch (err) {
       useStore.getState().toast((err as Error).message, 'error');
       return;
@@ -163,7 +190,7 @@ export function Stage() {
     };
 
     const handleAt = (z: Zone, sp: Vec): Handle | null => {
-      for (const h of zoneHandles(z, live.view.zoom, hold(z.id)).reverse()) {
+      for (const h of zoneHandles(z, live.view.zoom, hold(z.id), S().nodeSel).reverse()) {
         const s = toScreen(h);
         if (Math.hypot(s.x - sp.x, s.y - sp.y) < 9) return h;
       }
@@ -281,12 +308,13 @@ export function Stage() {
         const h = handleAt(zone, sp);
         if (h) {
           drag = { kind: 'handle', zone: zone.id, handle: h.id, key };
+          if (h.id[0] === 'N' && h.id[1] === ':') s.set({ nodeSel: h.id.slice(2) });
           if (h.id === 'lid') onMove(e);
           return;
         }
       }
       const hit = zoneAt(doc, p, s.zoneId);
-      s.set({ zoneId: hit?.id ?? null, ...(hit ? { tab: 'motion' as const } : {}) });
+      s.set({ zoneId: hit?.id ?? null, nodeSel: null, ...(hit ? { tab: 'motion' as const } : {}) });
       if (hit && (hit.type === 'eye' || hit.type === 'mouth')) drag = { kind: 'zone-move', zone: hit.id, last: p, key };
     };
 
@@ -347,8 +375,8 @@ export function Stage() {
           const g = drag;
           if (g.handle === 'lid') {
             const z = s.doc.zones.find((x) => x.id === g.zone) as EyeZone | undefined;
-            if (z) s.set({ lidHold: { ...s.lidHold, [z.id]: Math.min(1, Math.max(0, (z.upH - axisFrame(z).local(p).y) / (z.upH + z.loH))) } });
-          } else s.editZone(g.zone, (z) => applyHandle(z, g.handle, p), g.key);
+            if (z) { const lut = eyeLut(z); s.set({ lidHold: { ...s.lidHold, [z.id]: Math.min(1, Math.max(0, (lut.hU - axisFrame(z).local(p).y) / (lut.hU + lut.hL))) } }); }
+          } else s.editZone(g.zone, (z) => applyHandle(z, g.handle, p, e.altKey), g.key);
           break;
         }
         case 'zone-move': {
@@ -423,6 +451,27 @@ export function Stage() {
         // insert in order along the spine
         const index = zone.path.filter((q) => spineBind(spine, q.x, q.y).at < b.at).length;
         s.editZone(zone.id, (z) => { if (z.type === 'sway') z.path.splice(index, 0, p); });
+      } else if (zone.type === 'eye' && zone.edit === 'precise' && zone.curves) {
+        if (h && h.id[0] === 'N' && h.id[1] === ':') {
+          const [, c, si] = h.id.split(':') as [string, EyeCurve, string];
+          s.editZone<EyeZone>(zone.id, (z) => { if (z.curves) z.curves[c] = chainRemove(z.curves[c], Number(si)); });
+          s.set({ nodeSel: null });
+          return;
+        }
+        if (h) return;
+        const { t, y } = axisFrame(zone).local(p);
+        if (Math.abs(t) > 0.97) return;
+        let best: EyeCurve | null = null, bestD = near;
+        for (const c of CURVES) {
+          const d = Math.abs((c === 'lo' ? -y : y) - chainAt(zone.curves[c], t));
+          if (d < bestD) { bestD = d; best = c; }
+        }
+        if (!best) return;
+        const c = best;
+        const split = chainSplit(zone.curves[c], t);
+        if (!split) return;
+        s.editZone<EyeZone>(zone.id, (z) => { if (z.curves) z.curves[c] = split; });
+        s.set({ nodeSel: `${c}:${split.findIndex((n) => Math.abs(n.t - t) < 1e-3)}` });
       } else if (zone.type === 'eye') {
         if (h && (h.id[0] === 'u' || h.id[0] === 'l') && h.id.length > 1 && h.id !== 'up' && h.id !== 'lo' && h.id !== 'lid') {
           const i = Number(h.id.slice(1));
@@ -459,6 +508,25 @@ export function Stage() {
     };
 
     const onKey = (e: KeyboardEvent) => {
+      if (e.type === 'keydown' && e.key.startsWith('Arrow') && !(e.target as HTMLElement).closest('input, textarea, [contenteditable], [role=slider]')) {
+        const s = S();
+        const zone = s.doc.zones.find((z) => z.id === s.zoneId);
+        if (s.mode === 'motion' && !s.playing && zone?.type === 'eye' && zone.edit === 'precise' && zone.curves && s.nodeSel) {
+          e.preventDefault();
+          const [c, si] = s.nodeSel.split(':') as [EyeCurve, string];
+          const i = Number(si);
+          const n = zone.curves[c][i];
+          if (!n) return;
+          // one screen pixel per press (ten with Shift), however far you are zoomed in
+          const step = (e.shiftKey ? 10 : 1) / live.view.zoom;
+          const f = axisFrame(zone);
+          const dx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+          const dy = e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0;
+          const ny = n.y + (c === 'lo' ? -dy : dy);
+          s.editZone<EyeZone>(zone.id, (z) => { if (z.curves) z.curves[c] = chainMove(z.curves[c], i, 'n', n.t + dx / f.hw, ny, fixedEnds(c), false); }, `nudge:${zone.id}:${s.nodeSel}`);
+          return;
+        }
+      }
       if (e.code !== 'Space' || (e.target as HTMLElement).closest('input, textarea, [contenteditable]')) return;
       if (e.type === 'keydown') {
         if (!e.repeat) { spaceDown = true; spacePanned = false; }
@@ -500,6 +568,7 @@ export function Stage() {
       ctx.beginPath();
       if (h.shape === 'diamond') { ctx.rotate(Math.PI / 4); ctx.rect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6); }
       else if (h.shape === 'lid') { ctx.roundRect(-9, -5, 18, 10, 5); }
+      else if (h.shape === 'square') { ctx.rect(-3.5, -3.5, 7, 7); }
       else ctx.arc(0, 0, h.shape === 'ring' ? r + 1.5 : r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
@@ -600,17 +669,39 @@ export function Stage() {
         ctx.lineJoin = 'round';
         if (z.type === 'eye') {
           const o = eyeOutline(z);
+          if (sel && !eyePainting) {
+            // what travels (green) and what stretches (pink) when the lid closes
+            const N = 36, ub: Vec[] = [], bb: Vec[] = [], sb: Vec[] = [];
+            for (let i = 0; i <= N; i++) {
+              const t = -1 + (2 * i) / N, u = lidUp(z, t), bd = lidBand(z, t), sk = lidSkin(z, t);
+              ub.push(o.f.at(t, u)); bb.push(o.f.at(t, u + bd)); sb.push(o.f.at(t, u + bd + sk));
+            }
+            ctx.globalAlpha = 0.22; ctx.fillStyle = CURVE_COLOR.band;
+            poly([...ub, ...[...bb].reverse()], true); ctx.fill();
+            ctx.globalAlpha = 0.18; ctx.fillStyle = CURVE_COLOR.skin;
+            poly([...bb, ...[...sb].reverse()], true); ctx.fill();
+            ctx.globalAlpha = 1;
+            if (z.edit === 'precise') {
+              ctx.lineWidth = 1.4; ctx.setLineDash([4, 4]);
+              ctx.strokeStyle = CURVE_COLOR.skin; poly(sb); ctx.stroke();
+              ctx.strokeStyle = CURVE_COLOR.band; poly(bb); ctx.stroke();
+              ctx.setLineDash([]);
+            }
+          }
           ctx.globalAlpha = sel ? (eyePainting ? 0.35 : 1) : hov ? 0.9 : 0.55;
           poly([...o.up, ...o.lo.reverse()], true);
           ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(20,24,36,0.55)'; ctx.stroke();
           ctx.lineWidth = 1.6; ctx.strokeStyle = color; ctx.stroke();
           if (sel && !eyePainting) {
-            ctx.setLineDash([3, 4]);
-            poly(o.band); ctx.stroke();
-            ctx.setLineDash([]);
+            if (z.edit !== 'precise') {
+              ctx.setLineDash([3, 4]);
+              poly(o.band); ctx.stroke();
+              ctx.setLineDash([]);
+            }
             // track for the lid pull
             const lidX = 1 + 22 / v.zoom / o.f.hw;
-            poly([o.f.at(lidX, z.upH), o.f.at(lidX, -z.loH)]);
+            const lut = eyeLut(z);
+            poly([o.f.at(lidX, lut.hU), o.f.at(lidX, -lut.hL)]);
             ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,24,36,0.6)'; ctx.lineCap = 'round'; ctx.stroke();
             ctx.lineWidth = 2; ctx.strokeStyle = color; ctx.stroke();
           }
@@ -659,7 +750,17 @@ export function Stage() {
           ctx.setLineDash([]);
         }
         const activeHandle = drag?.kind === 'handle' ? drag.handle : hoverHandle;
-        for (const hd of zoneHandles(zone, v.zoom, hold(zone.id))) drawHandle(hd, color, hd.id === activeHandle);
+        if (zone.type === 'eye' && zone.edit === 'precise' && s.nodeSel) {
+          // tangent lines of the selected node
+          const hs = zoneHandles(zone, v.zoom, hold(zone.id), s.nodeSel);
+          const node = hs.find((x) => x.id === `N:${s.nodeSel}`);
+          if (node) for (const hd of hs.filter((x) => x.shape === 'square')) {
+            const a = toScreen(node), b = toScreen(hd);
+            ctx.strokeStyle = 'rgba(20,24,36,0.6)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+            ctx.strokeStyle = hd.color ?? color; ctx.lineWidth = 1.2; ctx.stroke();
+          }
+        }
+        for (const hd of zoneHandles(zone, v.zoom, hold(zone.id), s.nodeSel)) drawHandle(hd, hd.color ?? color, hd.id === activeHandle);
       }
       // brush ring for motion paint
       if (zone && isPaintZone(zone) && s.tool !== 'move') brushRing(s.tool === 'erase' ? '#ffffff' : ZONE_INFO[zone.type].color);
@@ -736,7 +837,7 @@ export function Stage() {
 
       // the overlay only repaints when something it shows has changed
       const brushing = s.tool !== 'move' && cursor ? `${cursor.x},${cursor.y}` : '';
-      const sig = [s.mode, s.playing, s.tab, s.zoneId, s.hoverZone, s.layerId, s.tool, s.brush.size, s.brush.soft, s.brush.color, s.eyeLayer, s.cloneFrom?.x, s.cloneFrom?.y, s.zoneId ? s.lidHold[s.zoneId] : 0, v.zoom, v.panX, v.panY, brushing, hoverHandle, a.demo, W, H].join('|');
+      const sig = [s.mode, s.playing, s.tab, s.zoneId, s.nodeSel, s.hoverZone, s.layerId, s.tool, s.brush.size, s.brush.soft, s.brush.color, s.eyeLayer, s.cloneFrom?.x, s.cloneFrom?.y, s.zoneId ? s.lidHold[s.zoneId] : 0, v.zoom, v.panX, v.panY, brushing, hoverHandle, a.demo, W, H].join('|');
       if (drag || wasDragging || sig !== lastSig || s.doc !== lastDoc) {
         lastSig = sig;
         lastDoc = s.doc;

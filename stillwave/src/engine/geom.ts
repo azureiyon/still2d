@@ -1,4 +1,4 @@
-import type { EyeZone, LidPoint, MouthZone, SwayZone, Vec } from './types';
+import type { EyeCurves, EyeZone, LidPoint, MouthZone, PathNode, SwayZone, Vec } from './types';
 
 /** The simple lid shape: one peak, rounded shoulders. */
 export function lidCurve(t: number, tp: number, h: number, r: number) {
@@ -43,34 +43,215 @@ function monotone(nodes: LidPoint[]) {
   };
 }
 
-export interface EyeLut { up: Float32Array; lo: Float32Array; hU: number; hL: number }
+// ---- precise curves: cubic Bezier chains whose t never doubles back, so each
+// curve is a single height across the eye (the shader reads it that way)
+
+const cubic = (a: number, b: number, c: number, d: number, u: number) => {
+  const v = 1 - u;
+  return v * v * v * a + 3 * v * v * u * b + 3 * v * u * u * c + u * u * u * d;
+};
+
+/** Height of a chain at t (bisection on the monotone t of each segment). */
+export function chainAt(path: PathNode[], t: number): number {
+  if (t <= path[0].t) return path[0].y;
+  const last = path[path.length - 1];
+  if (t >= last.t) return last.y;
+  let i = 1;
+  while (i < path.length - 1 && path[i].t < t) i++;
+  const a = path[i - 1], b = path[i];
+  let lo = 0, hi = 1;
+  for (let k = 0; k < 22; k++) {
+    const u = (lo + hi) / 2;
+    if (cubic(a.t, a.ot, b.it, b.t, u) < t) lo = u; else hi = u;
+  }
+  return cubic(a.y, a.oy, b.iy, b.y, (lo + hi) / 2);
+}
+
+/** Split a chain at t, keeping its shape (de Casteljau). Returns null if too close to a node. */
+export function chainSplit(path: PathNode[], t: number): PathNode[] | null {
+  if (path.length >= 12) return null;
+  let j = 1;
+  while (j < path.length && path[j].t < t) j++;
+  if (j === path.length || t <= path[0].t) return null;
+  const a = path[j - 1], b = path[j];
+  if (Math.min(t - a.t, b.t - t) < 0.04) return null;
+  let lo = 0, hi = 1;
+  for (let k = 0; k < 22; k++) { const u = (lo + hi) / 2; if (cubic(a.t, a.ot, b.it, b.t, u) < t) lo = u; else hi = u; }
+  const u = (lo + hi) / 2;
+  const mix = (p: number, q: number) => p + (q - p) * u;
+  const A = { t: mix(a.t, a.ot), y: mix(a.y, a.oy) }, B = { t: mix(a.ot, b.it), y: mix(a.oy, b.iy) }, C = { t: mix(b.it, b.t), y: mix(b.iy, b.y) };
+  const D = { t: mix(A.t, B.t), y: mix(A.y, B.y) }, E = { t: mix(B.t, C.t), y: mix(B.y, C.y) };
+  const F = { t: mix(D.t, E.t), y: mix(D.y, E.y) };
+  const out = path.map((n) => ({ ...n }));
+  out[j - 1].ot = A.t; out[j - 1].oy = A.y;
+  out[j].it = C.t; out[j].iy = C.y;
+  out.splice(j, 0, { t: F.t, y: F.y, it: D.t, iy: D.y, ot: E.t, oy: E.y });
+  return out;
+}
+
+/** Remove an interior node. */
+export function chainRemove(path: PathNode[], i: number): PathNode[] {
+  if (path.length <= 2 || i <= 0 || i >= path.length - 1) return path;
+  const out = path.map((n) => ({ ...n }));
+  out.splice(i, 1);
+  return clampChain(out);
+}
+
+/** Keep handles between their neighbours so t never doubles back. */
+export function clampChain(p: PathNode[]): PathNode[] {
+  for (let i = 0; i < p.length - 1; i++) {
+    const a = p[i], b = p[i + 1];
+    a.ot = Math.min(b.t, Math.max(a.t, a.ot));
+    b.it = Math.min(b.t, Math.max(a.ot, b.it));
+  }
+  return p;
+}
+
+/**
+ * Move one part of a node. `fixedEnds` keeps the end nodes at the eye corners
+ * (the lash line and lower lid); otherwise ends move up and down only.
+ * Handles stay smooth (opposite handle kept in line) unless `broken`.
+ */
+export function chainMove(path: PathNode[], i: number, part: 'n' | 'i' | 'o', t: number, y: number, fixedEnds: boolean, broken: boolean): PathNode[] {
+  const p = path.map((n) => ({ ...n }));
+  const n = p[i], prev = p[i - 1], next = p[i + 1];
+  const end = i === 0 || i === p.length - 1;
+  if (part === 'n') {
+    if (end && fixedEnds) return p;
+    const tt = end ? n.t : Math.min(next.t - 0.03, Math.max(prev.t + 0.03, t));
+    const dt = tt - n.t, dy = y - n.y;
+    n.t = tt; n.y = y; n.it += dt; n.ot += dt; n.iy += dy; n.oy += dy;
+  } else {
+    const isIn = part === 'i';
+    const ht = isIn ? Math.min(n.t, Math.max(prev ? prev.t : n.t, t)) : Math.max(n.t, Math.min(next ? next.t : n.t, t));
+    if (isIn) { n.it = ht; n.iy = y; } else { n.ot = ht; n.oy = y; }
+    if (!broken && !end) {
+      // mirror the direction onto the other handle, keeping its length
+      const vx = (isIn ? n.it : n.ot) - n.t, vy = (isIn ? n.iy : n.oy) - n.y;
+      const len = Math.hypot(vx, vy);
+      if (len > 1e-6) {
+        const ox = (isIn ? n.ot : n.it) - n.t, oy = (isIn ? n.oy : n.iy) - n.y;
+        const olen = Math.hypot(ox, oy);
+        if (isIn) { n.ot = n.t - (vx / len) * olen; n.oy = n.y - (vy / len) * olen; }
+        else { n.it = n.t - (vx / len) * olen; n.iy = n.y - (vy / len) * olen; }
+      }
+    }
+  }
+  return clampChain(p);
+}
+
+/**
+ * The smooth chain through f at the given nodes that best matches f in between.
+ * Node heights are exact; the tangent at each node is shared by both of its
+ * handles (so every node is smooth) and chosen by least squares over samples
+ * of every segment. Handles sit a third of the way along each segment.
+ */
+export function chainThrough(f: (t: number) => number, ts: number[]): PathNode[] {
+  const N = ts.length;
+  const y = ts.map(f);
+  const A = Array.from({ length: N }, () => new Float64Array(N));
+  const rhs = new Float64Array(N);
+  for (let i = 0; i < N - 1; i++) {
+    const d = ts[i + 1] - ts[i];
+    for (let k = 1; k < 24; k++) {
+      const u = k / 24, v = 1 - u;
+      const B0 = v * v * v, B1 = 3 * v * v * u, B2 = 3 * v * u * u, B3 = u * u * u;
+      // y(u) = c + p*m_i + q*m_{i+1}
+      const c = (B0 + B1) * y[i] + (B2 + B3) * y[i + 1] - f(ts[i] + d * u);
+      const pi = (B1 * d) / 3, qi = (-B2 * d) / 3;
+      A[i][i] += pi * pi; A[i][i + 1] += pi * qi; A[i + 1][i] += pi * qi; A[i + 1][i + 1] += qi * qi;
+      rhs[i] -= pi * c; rhs[i + 1] -= qi * c;
+    }
+  }
+  for (let i = 0; i < N; i++) A[i][i] += 1e-9;
+  // Gaussian elimination (tiny, well conditioned)
+  const m = Array.from(rhs);
+  for (let c = 0; c < N; c++) {
+    let piv = c;
+    for (let r = c + 1; r < N; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+    [A[c], A[piv]] = [A[piv], A[c]]; [m[c], m[piv]] = [m[piv], m[c]];
+    for (let r = c + 1; r < N; r++) {
+      const k = A[r][c] / A[c][c];
+      for (let j = c; j < N; j++) A[r][j] -= k * A[c][j];
+      m[r] -= k * m[c];
+    }
+  }
+  for (let r = N - 1; r >= 0; r--) {
+    let acc = m[r];
+    for (let j = r + 1; j < N; j++) acc -= A[r][j] * m[j];
+    m[r] = acc / A[r][r];
+  }
+  return ts.map((t, i) => {
+    const l = i ? (t - ts[i - 1]) / 3 : 0, r = i < N - 1 ? (ts[i + 1] - t) / 3 : 0;
+    return { t, y: y[i], it: t - l, iy: y[i] - m[i] * l, ot: t + r, oy: y[i] + m[i] * r };
+  });
+}
+
+export const mirrorChain = (path: PathNode[]): PathNode[] =>
+  [...path].reverse().map((n) => ({ t: -n.t, y: n.y, it: -n.ot, iy: n.oy, ot: -n.it, oy: n.iy }));
+
+// ---- the lid lookup table the shader reads
+
+export interface EyeLut {
+  up: Float32Array; lo: Float32Array; band: Float32Array; skin: Float32Array;
+  hU: number; hL: number; hTop: number; // tallest upper lid, deepest lower lid, highest skin top
+}
 const lutCache = new WeakMap<EyeZone, EyeLut>();
 
-/** Both lid curves sampled across the eye (left to right on screen). Heights are positive. */
+/** Simple-mode heights at screen-ordered t. */
+function simpleUp(z: EyeZone, flip: number) {
+  const peak = clampT(z.upT * flip);
+  if (!z.upPts?.length) return (t: number) => lidCurve(t, peak, z.upH, z.upRound);
+  const nodes = [{ t: -1, y: 0 }, ...z.upPts.map((p) => ({ t: Math.min(0.97, Math.max(-0.97, p.t * flip)), y: p.y })), { t: peak, y: z.upH }, { t: 1, y: 0 }].sort((a, b) => a.t - b.t);
+  return monotone(nodes.filter((p, i) => i === 0 || p.t - nodes[i - 1].t > 0.01));
+}
+function simpleLo(z: EyeZone, flip: number) {
+  const peak = clampT(z.loT * flip);
+  if (!z.loPts?.length) return (t: number) => lidCurve(t, peak, z.loH, z.loRound);
+  const nodes = [{ t: -1, y: 0 }, ...z.loPts.map((p) => ({ t: Math.min(0.97, Math.max(-0.97, p.t * flip)), y: p.y })), { t: peak, y: z.loH }, { t: 1, y: 0 }].sort((a, b) => a.t - b.t);
+  return monotone(nodes.filter((p, i) => i === 0 || p.t - nodes[i - 1].t > 0.01));
+}
+
+/** The four precise curves that reproduce an eye's current simple shape. */
+export function curvesFromSimple(z: EyeZone): EyeCurves {
+  const flip = z.a.x <= z.b.x ? 1 : -1;
+  const up = simpleUp(z, flip), lo = simpleLo(z, flip);
+  // nodes at the corners, the lid's peak, and half way to each corner
+  const pk = Math.min(0.6, Math.max(-0.6, z.upT * flip)), lk = Math.min(0.6, Math.max(-0.6, z.loT * flip));
+  const ts = [-1, (pk - 1) / 2, pk, (pk + 1) / 2, 1];
+  const tl = [-1, (lk - 1) / 2, lk, (lk + 1) / 2, 1];
+  return {
+    up: chainThrough((t) => Math.max(0, up(t)), ts),
+    band: chainThrough((t) => Math.max(0, up(t)) + z.band, ts),
+    skin: chainThrough((t) => Math.max(0, up(t)) + z.band + z.skin, ts),
+    lo: chainThrough((t) => Math.max(0, lo(t)), tl),
+  };
+}
+
+/** Lid heights across the eye (screen left = index 0). Heights are positive away from the axis. */
 export function eyeLut(z: EyeZone): EyeLut {
   let lut = lutCache.get(z);
   if (lut) return lut;
   const flip = z.a.x <= z.b.x ? 1 : -1;
-  const make = (tp: number, h: number, r: number, pts: LidPoint[]) => {
-    const out = new Float32Array(LUT_N + 1);
-    const peak = clampT(tp * flip);
-    let f: (t: number) => number;
-    if (!pts?.length) f = (t) => lidCurve(t, peak, h, r);
-    else {
-      const nodes = [{ t: -1, y: 0 }, ...pts.map((p) => ({ t: Math.min(0.97, Math.max(-0.97, p.t * flip)), y: p.y })), { t: peak, y: h }, { t: 1, y: 0 }].sort((a, b) => a.t - b.t);
-      f = monotone(nodes.filter((p, i) => i === 0 || p.t - nodes[i - 1].t > 0.01));
-    }
-    let max = 0;
-    for (let i = 0; i <= LUT_N; i++) {
-      out[i] = Math.max(0, f(-1 + (2 * i) / LUT_N));
-      max = Math.max(max, out[i]);
-    }
-    out[0] = out[LUT_N] = 0;
-    return { out, max };
-  };
-  const u = make(z.upT, z.upH, z.upRound, z.upPts);
-  const l = make(z.loT, z.loH, z.loRound, z.loPts);
-  lut = { up: u.out, lo: l.out, hU: u.max, hL: l.max };
+  const N = LUT_N + 1;
+  const up = new Float32Array(N), lo = new Float32Array(N), band = new Float32Array(N), skin = new Float32Array(N);
+  const precise = z.edit === 'precise' && z.curves;
+  const fu = precise ? (t: number) => chainAt(z.curves!.up, t) : simpleUp(z, flip);
+  const fl = precise ? (t: number) => chainAt(z.curves!.lo, t) : simpleLo(z, flip);
+  let hU = 0, hL = 0, hTop = 0;
+  for (let i = 0; i < N; i++) {
+    const t = -1 + (2 * i) / LUT_N;
+    let u = fu(t), l = fl(t);
+    if (!precise) { u = Math.max(0, u); l = Math.max(0, l); }
+    if (u + l < 0.5) l = 0.5 - u; // the lids may not cross
+    const b = precise ? Math.max(0.5, chainAt(z.curves!.band, t) - u) : z.band;
+    const s = precise ? Math.max(1, chainAt(z.curves!.skin, t) - u - b) : z.skin;
+    up[i] = u; lo[i] = l; band[i] = b; skin[i] = s;
+    hU = Math.max(hU, u); hL = Math.max(hL, l); hTop = Math.max(hTop, u + b + s);
+  }
+  up[0] = up[LUT_N] = 0;
+  lo[0] = lo[LUT_N] = 0;
+  lut = { up, lo, band, skin, hU, hL, hTop };
   lutCache.set(z, lut);
   return lut;
 }
@@ -85,6 +266,8 @@ function sampleLut(a: Float32Array, t: number) {
 export const lidUp = (z: EyeZone, t: number) => sampleLut(eyeLut(z).up, t);
 /** Lower lid depth below the eye axis at t. */
 export const lidLo = (z: EyeZone, t: number) => sampleLut(eyeLut(z).lo, t);
+export const lidBand = (z: EyeZone, t: number) => sampleLut(eyeLut(z).band, t);
+export const lidSkin = (z: EyeZone, t: number) => sampleLut(eyeLut(z).skin, t);
 
 export function eyeOutline(z: EyeZone, steps = 36) {
   const f = axisFrame(z);
@@ -95,7 +278,7 @@ export function eyeOutline(z: EyeZone, steps = 36) {
     const t = -1 + (2 * i) / steps;
     const u = lidUp(z, t);
     up.push(f.at(t, u));
-    band.push(f.at(t, u + z.band));
+    band.push(f.at(t, u + lidBand(z, t)));
     lo.push(f.at(t, -lidLo(z, t)));
   }
   return { f, up, lo, band };
@@ -104,14 +287,14 @@ export function eyeOutline(z: EyeZone, steps = 36) {
 export function eyeContains(z: EyeZone, pt: Vec, pad = 0) {
   const { t, y } = axisFrame(z).local(pt);
   if (Math.abs(t) > 1) return false;
-  return y <= lidUp(z, t) + z.band + pad && y >= -lidLo(z, t) - pad;
+  return y <= lidUp(z, t) + lidBand(z, t) + pad && y >= -lidLo(z, t) - pad;
 }
 
 /** The artboard rectangle an eye's paint (lid skin, lash and keep marks) lives in. */
 export function eyeBox(z: EyeZone) {
   const f = axisFrame(z);
-  const { hU, hL } = eyeLut(z);
-  const r = Math.max(f.hw * 1.45, hU + z.band + z.skin * 2 + 8, hL + 8);
+  const { hTop, hL } = eyeLut(z);
+  const r = Math.max(f.hw * 1.45, hTop + 8, hL + 8);
   return { x: f.mid.x - r, y: f.mid.y - r, w: r * 2, h: r * 2 };
 }
 
@@ -121,7 +304,7 @@ export function mouthContains(z: MouthZone, pt: Vec, pad = 0) {
 }
 
 /** Mirror an eye across a vertical line. */
-export function mirrorEye(z: EyeZone, axisX: number): Pick<EyeZone, 'a' | 'b' | 'upT' | 'loT' | 'upPts' | 'loPts'> {
+export function mirrorEye(z: EyeZone, axisX: number): Pick<EyeZone, 'a' | 'b' | 'upT' | 'loT' | 'upPts' | 'loPts' | 'curves'> {
   return {
     a: { x: 2 * axisX - z.b.x, y: z.b.y },
     b: { x: 2 * axisX - z.a.x, y: z.a.y },
@@ -130,6 +313,8 @@ export function mirrorEye(z: EyeZone, axisX: number): Pick<EyeZone, 'a' | 'b' | 
     // a->b reverses with the mirror, so points keep their t along that direction
     upPts: z.upPts.map((p) => ({ ...p })),
     loPts: z.loPts.map((p) => ({ ...p })),
+    // precise curves live in the screen-ordered eye frame, so they flip left to right
+    curves: z.curves ? { up: mirrorChain(z.curves.up), band: mirrorChain(z.curves.band), skin: mirrorChain(z.curves.skin), lo: mirrorChain(z.curves.lo) } : null,
   };
 }
 

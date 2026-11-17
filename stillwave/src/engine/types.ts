@@ -24,6 +24,12 @@ export interface Layer {
 export type ZoneType = 'eye' | 'sway' | 'head' | 'breath' | 'mouth' | 'hold';
 export type SwayStyle = 'swing' | 'bend' | 'flutter';
 export type LidPoint = { t: number; y: number };
+/** A node of a precise lid curve, in the eye's own frame: t runs -1 (left corner) to 1 (right corner),
+ *  y is pixels away from the eye axis (up for the upper curves, down for the lower lid). */
+export interface PathNode { t: number; y: number; it: number; iy: number; ot: number; oy: number }
+export type EyeCurve = 'up' | 'band' | 'skin' | 'lo';
+/** The four guide curves of a precisely edited eye. */
+export interface EyeCurves { up: PathNode[]; band: PathNode[]; skin: PathNode[]; lo: PathNode[] }
 
 interface ZoneBase {
   id: string;
@@ -93,6 +99,9 @@ export interface EyeZone extends ZoneBase {
   box: { x: number; y: number; w: number; h: number } | null; // artboard rect the eye paint covers
   paint: string | null; // hand-painted lid skin (image id)
   ctl: string | null; // red = keep as drawn, green = travels with the lid (image id)
+  edit: 'simple' | 'precise'; // which set of controls shapes this eye
+  curves: EyeCurves | null; // the precise shape, kept even while editing simply
+  follow: number; // how far the top of the carried band (the crease) travels with the lashes, 0..1
 }
 
 export interface MouthZone extends ZoneBase {
@@ -262,7 +271,7 @@ export function makeZone(type: ZoneType, doc: Doc, at: Vec, index: number): Zone
         a: { x: at.x - u * 0.045, y: at.y }, b: { x: at.x + u * 0.045, y: at.y },
         upT: 0, upH: u * 0.03, loT: 0, loH: u * 0.018, upRound: 0.8, loRound: 0.9,
         band: u * 0.008, loBand: u * 0.002, skin: u * 0.008, meet: 0.08, gaze: 0.6, pair: null,
-        upPts: [], loPts: [], fill: 'soft', roll: 0.4, box: null, paint: null, ctl: null,
+        upPts: [], loPts: [], fill: 'soft', roll: 0.4, box: null, paint: null, ctl: null, edit: 'simple', curves: null, follow: 1,
       };
     case 'mouth':
       return {
@@ -298,6 +307,9 @@ export function normalizeDoc(doc: Doc): Doc {
       z.box ??= null;
       z.paint ??= null;
       z.ctl ??= null;
+      z.edit ??= 'simple';
+      z.curves ??= null;
+      z.follow ??= 1;
     } else if (z.type === 'mouth') {
       z.bow ??= 0;
     }

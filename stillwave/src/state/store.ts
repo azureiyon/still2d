@@ -28,6 +28,7 @@ interface State {
   eyeLayer: EyeLayer;
   lidHold: Record<string, number>; // held lid position per eye while editing
   cloneFrom: Vec | null;
+  nodeSel: string | null; // selected precise-curve node, e.g. 'up:2'
   layerId: string | null;
   zoneId: string | null;
   exprId: string | null;
@@ -65,6 +66,7 @@ export const useStore = create<State>((set, get) => ({
   eyeLayer: 'skin',
   lidHold: {},
   cloneFrom: null,
+  nodeSel: null,
   layerId: null,
   zoneId: null,
   exprId: null,

@@ -28,11 +28,11 @@ Checkpoint of my implementation before this pass: git tag `checkpoint/v1-indepen
   lid, a crease that follows the lid, and lash pixels transported with their exact
   shape (including tips and roll) through a tangent frame. My lash band slides
   well, but tips that stick out past the band need the Lashes brush.
-- **Fine curve control.** Multi-segment Bézier lids with independent handles and a
-  separate crease curve. My shaping points are easier to place, but there are no
-  tangent handles and no crease.
-- **A stronger strain solver.** Twelve projection passes plus island-limited
-  fallback keep extreme poses from folding. My guard is simpler.
+- **Fine curve control** (in the first pass). Multi-segment Bézier lids with
+  independent handles and a separate crease curve. Matched and extended in the
+  second pass below.
+- **A stronger strain solver** (in the first pass). Twelve projection passes plus
+  island-limited fallback. Also matched and extended below.
 - **Selection tools** (bucket, edge-connected background, lasso, add/subtract).
   I did not build these.
 - **Test discipline.** Exact pixel checks at rest, projection error in pixels,
@@ -134,6 +134,102 @@ mask weight above 0.5; lower means the strand keeps its drawn shape better):
 ![Eye selected, painting Keep marks with the lid held closed](img/ui-eye-paint.jpg)
 ![Artwork mode with a repair layer and the brush](img/ui-retouch.jpg)
 ![Export workspace](img/ui-export.jpg)
+
+## Second pass: precision without a harder basic workflow
+
+### Was lower precision a real limitation?
+
+No. Three things were missing after the first pass: Bézier lid curves, a crease
+control and a strong fold solver. None was blocked by the architecture, and
+calling them a "tradeoff" was wrong.
+
+- **Lid curves** already reach the shader as a sampled lookup texture, so any
+  curve shape works without touching the blink maths.
+- **A crease** is a remapping inside the same shader pass.
+- **A solver** is CPU code on the mesh I already had.
+
+They were deferred for development time. The one genuine constraint is shared
+with the reference: each curve must be a single height across the eye (no
+overhangs), because both renderers invert it along the eye axis.
+
+### What the phone app's blink tool showed
+
+The tutorial recording of the app that inspired Stillwave guides the artist with
+four dashed, multi-node curves per eye:
+
+- the lash line;
+- a band above it labelled *protect double eyelids, eyelashes and eye shadow*,
+  carried down intact;
+- the *eyelid skin below the eyebrows*, which stretches;
+- the lower eye contour.
+
+That is the same model my shader uses (a carried band plus a stretching strip),
+but with free-form, variable-thickness boundaries instead of two constant
+thicknesses. It also answers the crease question without a separate crease
+curve: the crease sits inside the carried band.
+
+### Precise mode
+
+Each eye has a **Simple / Precise** switch. Simple is unchanged and stays the
+default. Precise converts the current shape into four Bézier chains drawn in the
+same colours as the tints on the canvas:
+
+- the lash line;
+- the carried band (green);
+- the stretching skin (pink);
+- the lower lid.
+
+| Capability | How it works |
+| --- | --- |
+| Nodes and tangents | Click a node to show its two handles; dragging one keeps the node smooth, Alt-drag breaks it into a corner |
+| Add and remove | Double-click a curve to add a node (the curve keeps its exact shape); double-click a node to remove it; up to 12 per curve |
+| Nudging | Arrow keys move the selected node one screen pixel (ten with Shift), whatever the zoom; a run of nudges is one undo step |
+| Checking | Hold the lid at 0, 25, 50, 75 or 100% while editing; *Focus eye* zooms the canvas to the eye |
+| Crease follow | How far the top of the carried band travels with the lashes. The extra height grows quadratically from the lash line, so the lashes stay rigid and only the skin under the crease stretches |
+| No lost work | Switching back to Simple keeps the curves; switching again restores them. Mirroring and saving carry them |
+
+![Precise mode: four colour-coded curves, the selected node's tangent handles, lid held at 60%](img/ui-precise-eye.jpg)
+
+Converting must not change the blink. The first conversion I wrote did (it
+sampled slopes, and the simple lid is near-vertical at the corners). It now fits
+smooth tangents by least squares against the true curve, with a node at the
+lid's peak. Deterministic offscreen renders of the flattened sample, simple vs
+converted:
+
+| Lid closed | 0% | 25% | 50% | 75% | 100% |
+| --- | --- | --- | --- | --- | --- |
+| Pixels differing by more than 16/255 (of 184,041) | 0 | 234 | 437 | 907 | 1,186 |
+
+The remaining differences are sub-pixel shifts along the lash edge.
+
+![Simple vs converted precise at five closures, and crease follow 100% vs 40%](img/eye-precise-fidelity.png)
+
+### Fold protection
+
+The three-pass guard was replaced by a solver in four stages:
+
+1. Edge projection on grid edges **and cell diagonals** (12 alternating passes,
+   lengths kept within 40–220%, held vertices never move).
+2. A flip check on every triangle.
+3. **Local unfolding**: displacement smoothing that grows outward from folded
+   triangles.
+4. Only if folds remain, scale back the motion of the connected moving region
+   that contains them, never the whole picture.
+
+Stage 3 is the part the reference does not have; it falls straight back to
+island scaling. At deliberately extreme poses (flattened sample, hair tip turned
+1.2–1.4 rad):
+
+| Pose | Folded triangles, guard off | Guard on | Motion kept |
+| --- | --- | --- | --- |
+| Bend 1.4 rad | 131 | 0 | 91% |
+| Bend 1.4 rad with a held shoulder | 83 | 0 | 100% |
+| Bend −1.2 rad, into the face | 135 | 0 | 84% |
+
+![Extreme poses with the guard off and on](img/fold-protection.png)
+
+It costs a few milliseconds on frames that actually fold, and nothing extra on
+ordinary poses.
 
 ## Where both still fall short
 

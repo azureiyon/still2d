@@ -28,7 +28,10 @@ Nothing leaves your machine. There is no server, account or API.
 2. **Motion**: add motions and place them on the picture.
    - **Eye**: fit the outline to the opening. Pull the tab beside it to close the
      lid; it stays where you leave it. Double-click a lid line to add a shaping
-     point. Choose how hidden skin is made (*Blend skin* or *Pull skin down*), and
+     point. For exact work switch the eye to **Precise**: four Bézier curves
+     (lash line, carried band, stretching skin, lower lid) with nodes, tangent
+     handles, Alt for corners, arrow-key nudging, closure presets and
+     **Crease follow**. Simple stays the default, and both shapes are kept. Choose how hidden skin is made (*Blend skin* or *Pull skin down*), and
      when the automatic result isn't enough, paint the lid yourself: **Lid skin**
      (brush or clone), **Lashes** (extra lashes that travel with the lid) and
      **Keep** (hair or detail the blink must never touch). Mirror to the other eye.
@@ -86,10 +89,15 @@ Motion is split by scale:
   and turns with it, so a lock keeps its drawn width. The paint weight scales
   the *angle* a point receives rather than blending positions, so soft edges
   twist gently instead of smearing. Overlapping sways share a vertex by squared
-  weight. Hold-still paint pins vertices after all motion, and a fold guard eases
-  back any grid edge squeezed or stretched past its limits.
+  weight. Hold-still paint pins vertices after all motion. Fold protection then
+  projects grid edges and diagonals back into range, unfolds any inside-out
+  triangles locally, and only as a last resort scales back the motion of the
+  one connected region that still folds.
 - **Shader (per pixel)** for the face. Eyelids, gaze and mouth remap texture
   lookups in rest-pose space, so they stay sharp and ride along with the mesh.
+  Each eye's lids reach the shader as a lookup table across the eye (lid
+  heights, carried-band and stretching-skin thickness), so simple and precise
+  shapes use the same blink.
   The lash band is slid down over the eye; the uncovered skin is a blend of the
   skin tones above and below the eye (rejecting samples whose hue doesn't match
   skin, such as a fringe), with brushwork carried over from the strip above the
@@ -111,13 +119,15 @@ with the earlier Stillwave project it learned from, with rendered comparisons.
   a patch when zoomed in; hand-painted or cloned lid skin is the fix. Eyes and
   mouths are fitted by hand; there is no lash or face detection, and a careless
   fit (the upper curve on top of the lash stroke instead of below it) gives a
-  visibly wrong blink.
+  visibly wrong blink. Precise curves must be a single height across the eye
+  (no overhangs).
 - Swing on a flat mask stretches the soft border more than Bend does. Hold-still
   can tear a soft strand where it crosses a held area.
 - Eye paint is stored at 256 × 256 per eye. Up to 8 eyes per project (4 on any
   one layer), 2 mouths per layer, 6 points per lid or spine. Clone samples the
   visible artwork at rest, up to 2048 px.
-- The fold guard is a simple three-pass edge correction, not a full strain solver.
+- At very large swings, fold protection keeps the picture intact by giving up
+  some motion (84–100% kept in the tests); it is not a physical simulation.
 - PSD blend modes, clipping masks and layer effects are ignored. GIF has 256
   colours and hard-edged transparency. WebM is recorded in real time;
   transparency was verified in Chromium only.

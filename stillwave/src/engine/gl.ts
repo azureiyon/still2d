@@ -38,9 +38,11 @@ vec4 artSoft(vec2 doc){
   return textureLod(uTex,uv,2.)*step(0.,uv.x)*step(uv.x,1.)*step(0.,uv.y)*step(uv.y,1.);
 }
 // both lid curves at t: x = upper height, y = lower depth
-vec2 lids(int row,float t){
+// per position across the eye: x upper lid height, y lower lid depth,
+// z carried band (lashes, crease, shadow) thickness, w stretching skin thickness
+vec4 lids(int row,float t){
   float f=clamp((t+1.)*.5,0.,1.)*128.; float i=min(floor(f),127.);
-  vec2 a=texelFetch(uLut,ivec2(int(i),row),0).rg, b=texelFetch(uLut,ivec2(int(i)+1,row),0).rg;
+  vec4 a=texelFetch(uLut,ivec2(int(i),row),0), b=texelFetch(uLut,ivec2(int(i)+1,row),0);
   return mix(a,b,f-i);
 }
 // the eye's own paint: row 0 lid skin, row 1 marks (r keep, g lash)
@@ -49,6 +51,14 @@ vec4 eyePaint(int i,vec2 doc,float row){
   if(q.x<0.||q.y<0.||q.x>1.||q.y>1.) return vec4(0.);
   q=clamp(q,vec2(.5/256.),vec2(1.-.5/256.));
   return texture(uAtlas,vec2((uEyeB[i].w+q.x)/8.,(row+q.y)/2.));
+}
+
+// inverse of dest = (s + e*(s/B)^2)*r: where in the band a destination point came from
+float bandSrc(float Y,float B,float e,float r){
+  Y/=r;
+  if(e<1e-4) return Y;
+  float a=e/(B*B);
+  return (-1.+sqrt(max(1.+4.*a*Y,0.)))/(2.*a);
 }
 
 // Eyelids are made from the drawing itself. The lash line slides down the
@@ -60,28 +70,37 @@ vec2 eyeWarp(vec2 p,int i){
   vec2 mid=(a+b)*.5; vec2 d=b-a; float hw=max(length(d)*.5,1.);
   vec2 ex=d/(2.*hw); vec2 n=vec2(ex.y,-ex.x);
   vec2 q=p-mid; float t=dot(q,ex)/hw; float y=dot(q,n);
-  float hU=uEyeB[i].x, hL=uEyeB[i].y;
-  float B=uEyeC[i].x, S=max(uEyeC[i].y,1.), B2=uEyeE[i].z, roll=uEyeC[i].w;
+  float hTop=uEyeB[i].x, hL=uEyeB[i].y, Smax=uEyeC[i].y;
+  float B2=uEyeE[i].z, roll=uEyeC[i].w, follow=uEyeC[i].x;
   bool soft=uEyeC[i].z>.5;
   int flags=int(uEyeE[i].w+.5); bool hasPaint=(flags&1)!=0, hasMarks=(flags&2)!=0;
-  float reach=hasMarks?hU*1.5+B:0.;
-  if(abs(t)>=1. || y>hU+B+S+2.+reach || y<-hL-B2-S-2.-reach*.5) return p;
-  vec2 ul=lids(int(uEyeB[i].z+.5),t); float U=ul.x, Lw=-ul.y;
-  float C=mix(Lw,U,uEyeD[i].w)+uEyeD[i].z*.4*(hU+hL)*(1.-t*t);
+  float reach=hasMarks?hTop*.5:0.;
+  if(abs(t)>=1. || y>hTop+2.+reach || y<-hL-B2-Smax-2.-reach) return p;
+  int row=int(uEyeB[i].z+.5);
+  vec4 ul=lids(row,t); float U=ul.x, Lw=-ul.y, B=max(ul.z,.5), S=max(ul.w,1.);
+  float hU=hTop-B-S;
+  float C=mix(Lw,U,uEyeD[i].w)+uEyeD[i].z*.4*(max(hU,1.)+hL)*(1.-t*t);
   C=clamp(C,Lw,U);
   float Uc=mix(U,C,uEyeD[i].x), Lc=mix(Lw,C,max(uEyeD[i].y,smoothstep(.6,1.,uEyeD[i].x)));
   float shift=U-Uc, moved=smoothstep(0.,1.5,shift);
   float r=mix(1.,1.-.6*roll,uEyeD[i].x); // lashes foreshorten as the lid comes down
+  // The carried band travels with the lashes. With follow below 1 its top (the
+  // crease) travels less, so the band grows taller as the lid comes down. The
+  // growth is zero at the lash line and largest at the crease, so the lashes
+  // stay rigid and only the skin between them and the crease stretches:
+  //   dest = (s + e*(s/B)^2) * r   for s in 0..B (distance above the lash line)
+  float e=shift*(1.-follow);
+  float Bd=max(.5,(B+e)*r);
   vec2 along=mid+ex*(t*hw);
   float ys=y;
   if(y>=Uc){
     if(!soft){
-      float top=U+B+S, bt=Uc+B*r;
-      if(y<bt) ys=U+(y-Uc)/r;
-      else if(y<top) ys=mix(U+B,top,(y-bt)/(top-bt));
+      float top=U+B+S, bt=Uc+Bd;
+      if(y<bt) ys=U+bandSrc(y-Uc,B,e,r);
+      else if(y<top) ys=mix(U+B,top,(y-bt)/max(top-bt,.001));
     }
   } else if(y<=Lc){
-    float bot=Lw-B2-S;
+    float bot=Lw-B2-Smax;
     if(y>Lc-B2) ys=y-Lc+Lw;
     else if(y>bot) ys=mix(Lw-B2,bot,(Lc-B2-y)/(Lc-B2-bot));
   }
@@ -105,18 +124,19 @@ vec2 eyeWarp(vec2 p,int i){
     // Skin is sampled a little clear of the lashes, across the width of the eye.
     // The skin under the eye is rarely hidden, so it is the reference: samples
     // above the eye that look nothing like it (a fringe, a brow) are ignored.
-    float clear=uTexel*4.; int row=int(uEyeB[i].z+.5);
+    float clear=uTexel*4.;
     vec4 below=vec4(0.);
-    for(int k=-2;k<=2;k++){ float tt=clamp(t+float(k)*.22,-.92,.92); below+=artSoft(mid+ex*(tt*hw)+n*(-lids(row,tt).y-B2-S-clear)); }
+    for(int k=-2;k<=2;k++){ float tt=clamp(t+float(k)*.22,-.92,.92); below+=artSoft(mid+ex*(tt*hw)+n*(-lids(row,tt).y-B2-Smax-clear)); }
     below/=5.;
     // compare by hue, not brightness: skin in shadow is still skin, a blue fringe is not
     vec3 ref=below.rgb/max(below.r+below.g+below.b,.001);
     vec4 above=vec4(0.); float wsum=0.;
     for(int k=-3;k<=3;k++){
       float tt=clamp(t+float(k)*.2,-.95,.95);
-      vec4 c=artSoft(mid+ex*(tt*hw)+n*(lids(row,tt).x+B+S+clear));
+      vec4 lt=lids(row,tt);
+      vec4 c=artSoft(mid+ex*(tt*hw)+n*(lt.x+lt.z+lt.w+clear));
       vec3 dc=c.rgb/max(c.r+c.g+c.b,.001)-ref;
-      float w=(exp(-dot(dc,dc)*260.)+.002)/(1.+abs(float(k))*.5);
+      float w=(exp(-dot(dc,dc)*90.)+.002)/(1.+abs(float(k))*.5);
       above+=c*w; wsum+=w;
     }
     above/=wsum;
@@ -127,17 +147,19 @@ vec2 eyeWarp(vec2 p,int i){
     // blended colour. Skipped where that skin is really hair or brow.
     // The sample folds back and forth inside the skin strip above the lashes,
     // so it never reaches up into a brow or fringe.
-    float fold=abs(mod(max(U+B-y,0.),2.*S)-S);
-    vec2 dpos=along+n*(U+B+clear+fold);
+    // The whole lid maps once onto the strip (no mirrored repeats), so anything
+    // in the strip appears at most once.
+    float kk=clamp((U+B-y)/max(U+B-Lw,1.),0.,1.);
+    vec2 dpos=along+n*(U+B+clear+kk*S);
     vec4 sharp=art(dpos), blur=artSoft(dpos);
     vec3 dh=blur.rgb/max(blur.r+blur.g+blur.b,.001)-ref, ds=sharp.rgb/max(sharp.r+sharp.g+sharp.b,.001)-ref;
-    float like=exp(-max(dot(dh,dh),dot(ds,ds))*260.);
-    fill.rgb+=clamp(sharp.rgb-blur.rgb,-.12,.12)*fill.a*like*.9;
+    float like=smoothstep(.6,.95,exp(-max(dot(dh,dh),dot(ds,ds))*260.));
+    fill.rgb+=clamp(sharp.rgb-blur.rgb,-.08,.08)*fill.a*like*.8;
     gPlate=paint+fill*(1.-paint.a); gReplace=1.;
   } else { gPlate=paint; gReplace=0.; }
   gCover=cover;
   // lashes: the band above the lid edge, plus anything marked as lash
-  float ysL=U+(y-Uc)/r;
+  float ysL=U+bandSrc(y-Uc,B,e,r);
   gLashP=along+n*ysL;
   float la=soft?step(Uc,y)*step(U,ysL)*(1.-smoothstep(U+B-1.,U+B+.5,ysL)):0.;
   if(hasMarks) la=max(la,eyePaint(i,gLashP,1.).g);
@@ -209,6 +231,9 @@ interface LayerMesh {
   // scratch for blending overlapping sways
   sx: Float32Array; sy: Float32Array; sw: Float32Array;
   edgeX: number; edgeY: number;
+  // fold protection
+  edges: Int32Array; edgeLen: Float32Array; tris: Uint32Array; triArea: Float32Array;
+  mob: Float32Array; hold: Float32Array; label: Int32Array; queue: Int32Array;
 }
 
 const hex = (c: string): [number, number, number] => {
@@ -220,6 +245,32 @@ const hex = (c: string): [number, number, number] => {
 
 export function cssToRgb(c: string): [number, number, number] {
   return hex(c);
+}
+
+/** Edges (grid and cell diagonals) and triangles with their rest sizes, for fold protection. */
+function foldData(rest: Float32Array, cols: number, rows: number, idx: Uint16Array) {
+  const S = cols + 1;
+  const e: number[] = [];
+  for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+    const a = j * S + i;
+    if (i < cols) e.push(a, a + 1, 0);
+    if (j < rows) e.push(a, a + S, 0);
+    if (i < cols && j < rows) { e.push(a, a + S + 1, 0); e.push(a + 1, a + S, 0); }
+  }
+  const edges = new Int32Array(e);
+  const edgeLen = new Float32Array(edges.length / 3);
+  for (let k = 0; k < edges.length; k += 3) {
+    const a = edges[k], b = edges[k + 1];
+    edgeLen[k / 3] = Math.max(1e-6, Math.hypot(rest[b * 2] - rest[a * 2], rest[b * 2 + 1] - rest[a * 2 + 1]));
+  }
+  const tris = new Uint32Array(idx);
+  const triArea = new Float32Array(tris.length / 3);
+  for (let t = 0; t < tris.length; t += 3) {
+    const a = tris[t], b = tris[t + 1], c = tris[t + 2];
+    const ar = (rest[b * 2] - rest[a * 2]) * (rest[c * 2 + 1] - rest[a * 2 + 1]) - (rest[b * 2 + 1] - rest[a * 2 + 1]) * (rest[c * 2] - rest[a * 2]);
+    triArea[t / 3] = Math.abs(ar) < 1e-9 ? 1e-9 : ar;
+  }
+  return { edges, edgeLen, tris, triArea };
 }
 
 const SPINE_STEPS = 32;
@@ -252,11 +303,18 @@ export class Renderer {
   private spineY = new Float32Array((SWAY_LEVELS + 1) * (SPINE_STEPS + 1));
   private tmpA = new Float32Array(2);
   private tmpB = new Float32Array(2);
-  /** Vertices the fold guard had to correct in the last frame. */
-  guarded = 0;
+  /** Fold protection on/off (off only for comparisons), and what it did in the last frame. */
+  foldGuard = true;
+  fold = { edges: 0, flips: 0, flipsAfter: 0, islands: 0, unfolded: 0, minScale: 1 };
+  get guarded() { return this.fold.edges; }
 
-  constructor(public canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: true, preserveDrawingBuffer: false });
+  /**
+   * `keep`: hold on to the last frame. The editor needs this because it skips
+   * redrawing a picture that has not changed; without it the browser may show
+   * a stale buffer the next time the page is composited.
+   */
+  constructor(public canvas: HTMLCanvasElement, keep = false) {
+    const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: true, preserveDrawingBuffer: keep });
     if (!gl) throw new Error('WebGL2 is not available in this browser.');
     this.gl = gl;
     const compile = (type: number, src: string) => {
@@ -381,6 +439,8 @@ export class Renderer {
       weights: new Map(), binds: new Map(),
       sx: new Float32Array(n), sy: new Float32Array(n), sw: new Float32Array(n),
       edgeX: (l.w * l.scale) / cols, edgeY: (l.h * l.scale) / rows,
+      ...foldData(rest, cols, rows, idx),
+      mob: new Float32Array(n), hold: new Float32Array(n), label: new Int32Array(n), queue: new Int32Array(n),
     };
     this.meshes.set(l.id, m);
     return m;
@@ -563,6 +623,7 @@ export class Renderer {
     }
 
     // ---- hold still: painted anchors win over everything above
+    m.hold.fill(0);
     for (const z of doc.zones) {
       // lifted patches are free of the page they came from: that is the point of lifting them
       if (z.type !== 'hold' || !z.enabled || l.role === 'lifted' || !zoneHitsLayer(z, l.id)) continue;
@@ -571,13 +632,14 @@ export class Renderer {
       painted = true;
       for (let i = 0; i < n; i++) {
         const k = 1 - w[i];
+        if (w[i] > m.hold[i]) m.hold[i] = w[i];
         if (k >= 0.997) continue;
         pos[i * 2] = rest[i * 2] + (pos[i * 2] - rest[i * 2]) * k;
         pos[i * 2 + 1] = rest[i * 2 + 1] + (pos[i * 2 + 1] - rest[i * 2 + 1]) * k;
       }
     }
 
-    if (painted) this.guard(m);
+    if (painted && this.foldGuard) this.guard(m);
 
     if (f.body.rot !== 0 || f.body.bob !== 0) {
       const px = doc.width / 2, py = doc.height;
@@ -592,47 +654,142 @@ export class Renderer {
   }
 
   /**
-   * Fold guard. Where a moving region meets a still one the grid can be
-   * squashed until it turns inside out, which shows as torn, doubled pixels.
-   * Any grid edge squeezed below 35% (or stretched past 250%) of its length is
-   * eased back; rigid turns are untouched because they keep edge lengths.
+   * Fold protection. Where a moving region meets a still one, the grid can be
+   * squeezed until triangles turn inside out, which shows as torn, doubled
+   * pixels. Three stages:
+   *  1. edge projection: every grid edge and cell diagonal is kept between 40%
+   *     and 220% of its rest length (12 alternating passes, moving only
+   *     vertices that are free to move; held vertices never move);
+   *  2. a flip check on every triangle;
+   *  3. for any connected moving region that still has a flipped triangle,
+   *     its motion alone is scaled back until none is flipped.
+   * Rigid turns keep every length, so they pass through untouched.
    */
   private guard(m: LayerMesh) {
     const { pos, rest, cols, rows } = m;
-    const stride = cols + 1;
+    const S = cols + 1, n = S * (rows + 1);
+    const mob = m.mob;
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      const moved = Math.abs(pos[i * 2] - rest[i * 2]) + Math.abs(pos[i * 2 + 1] - rest[i * 2 + 1]) > 0.01;
+      mob[i] = moved ? 1 - m.hold[i] : 0;
+      if (mob[i] > 0) any = true;
+    }
+    if (!any) return;
+    const st = this.fold;
+    // 1. edge projection
+    const edges = m.edges;
     let fixed = 0;
-    const fix = (a: number, b: number, len: number) => {
-      const ex = pos[b * 2] - pos[a * 2], ey = pos[b * 2 + 1] - pos[a * 2 + 1];
-      const rx = rest[b * 2] - rest[a * 2], ry = rest[b * 2 + 1] - rest[a * 2 + 1];
-      const along = (ex * rx + ey * ry) / len; // signed length along the rest direction: negative means flipped
-      const cur = Math.hypot(ex, ey);
-      let want = cur;
-      if (along < len * 0.35) want = len * 0.35;
-      else if (cur > len * 2.5) want = len * 2.5;
-      else return;
-      // aim for the rest direction when flipped or collapsed, else keep the current one
-      const ux = along < len * 0.35 ? rx / len : ex / cur, uy = along < len * 0.35 ? ry / len : ey / cur;
-      const ma = Math.abs(pos[a * 2] - rest[a * 2]) + Math.abs(pos[a * 2 + 1] - rest[a * 2 + 1]) > 0.01 ? 1 : 0;
-      const mb = Math.abs(pos[b * 2] - rest[b * 2]) + Math.abs(pos[b * 2 + 1] - rest[b * 2 + 1]) > 0.01 ? 1 : 0;
-      if (!ma && !mb) return;
-      const dx = ux * want - ex, dy = uy * want - ey;
-      const ka = ma / (ma + mb), kb = mb / (ma + mb);
-      pos[a * 2] -= dx * ka * 0.9; pos[a * 2 + 1] -= dy * ka * 0.9;
-      pos[b * 2] += dx * kb * 0.9; pos[b * 2 + 1] += dy * kb * 0.9;
-      fixed++;
+    for (let pass = 0; pass < 12; pass++) {
+      let changed = false;
+      const rev = pass & 1;
+      for (let k0 = 0; k0 < edges.length; k0 += 3) {
+        const k = rev ? edges.length - 3 - k0 : k0;
+        const a = edges[k], b = edges[k + 1];
+        const ma = mob[a], mb = mob[b];
+        if (ma + mb < 1e-6) continue;
+        const len = m.edgeLen[k / 3];
+        const rx = rest[b * 2] - rest[a * 2], ry = rest[b * 2 + 1] - rest[a * 2 + 1];
+        const ex = pos[b * 2] - pos[a * 2], ey = pos[b * 2 + 1] - pos[a * 2 + 1];
+        const along = (ex * rx + ey * ry) / len; // negative: the edge has flipped over
+        const cur = Math.hypot(ex, ey);
+        let want: number, ux: number, uy: number;
+        if (along < len * 0.4) { want = len * 0.4; ux = rx / len; uy = ry / len; }
+        else if (cur > len * 2.2) { want = len * 2.2; ux = ex / cur; uy = ey / cur; }
+        else continue;
+        const dx = ux * want - ex, dy = uy * want - ey;
+        const ka = ma / (ma + mb), kb = mb / (ma + mb);
+        pos[a * 2] -= dx * ka; pos[a * 2 + 1] -= dy * ka;
+        pos[b * 2] += dx * kb; pos[b * 2 + 1] += dy * kb;
+        fixed++;
+        changed = true;
+      }
+      if (!changed) break;
+    }
+    st.edges += fixed;
+    // 2. flip check
+    const tris = m.tris;
+    const flipped = (t: number) => {
+      const a = tris[t], b = tris[t + 1], c = tris[t + 2];
+      const cur = (pos[b * 2] - pos[a * 2]) * (pos[c * 2 + 1] - pos[a * 2 + 1]) - (pos[b * 2 + 1] - pos[a * 2 + 1]) * (pos[c * 2] - pos[a * 2]);
+      return cur / m.triArea[t / 3] < 0.05;
     };
-    for (let pass = 0; pass < 3; pass++) {
-      const before = fixed;
-      for (let j = 0; j <= rows; j++) {
-        for (let i = 0; i <= cols; i++) {
-          const a = j * stride + i;
-          if (i < cols) fix(a, a + 1, m.edgeX);
-          if (j < rows) fix(a, a + stride, m.edgeY);
+    let bad: number[] = [];
+    for (let t = 0; t < tris.length; t += 3) if (flipped(t)) bad.push(t);
+    st.flips += bad.length;
+    if (!bad.length) return;
+    // 2b. unfold locally: smooth the displacement around folded triangles,
+    // widening the neighbourhood each round, before giving up any motion
+    const near = m.label; // reused as a marker array here
+    for (let round = 0; round < 10 && bad.length; round++) {
+      near.fill(0);
+      for (const t of bad) for (let v = 0; v < 3; v++) near[tris[t + v]] = 1;
+      for (let grow = 0; grow < 1 + (round >> 1); grow++) {
+        for (let i = 0; i < n; i++) if (near[i] === 1) {
+          const x = i % S;
+          for (const j of [x > 0 ? i - 1 : -1, x < cols ? i + 1 : -1, i - S, i + S]) if (j >= 0 && j < n && !near[j]) near[j] = 2;
+        }
+        for (let i = 0; i < n; i++) if (near[i] === 2) near[i] = 1;
+      }
+      for (let it = 0; it < 4; it++) {
+        for (let i = 0; i < n; i++) {
+          if (near[i] !== 1 || mob[i] <= 0) continue;
+          const x = i % S;
+          let sx = 0, sy = 0, c = 0;
+          for (const j of [x > 0 ? i - 1 : -1, x < cols ? i + 1 : -1, i - S, i + S]) {
+            if (j < 0 || j >= n) continue;
+            sx += pos[j * 2] - rest[j * 2]; sy += pos[j * 2 + 1] - rest[j * 2 + 1]; c++;
+          }
+          const k = 0.5 * mob[i];
+          pos[i * 2] += ((rest[i * 2] + sx / c) - pos[i * 2]) * k;
+          pos[i * 2 + 1] += ((rest[i * 2 + 1] + sy / c) - pos[i * 2 + 1]) * k;
         }
       }
-      if (fixed === before) break;
+      // smoothing can fold a neighbour, so check every triangle again
+      const more: number[] = [];
+      for (let t = 0; t < tris.length; t += 3) if (flipped(t)) more.push(t);
+      bad = more;
     }
-    this.guarded += fixed;
+    st.unfolded += Math.max(0, st.flips - bad.length);
+    if (!bad.length) return;
+    // 3. scale back only the connected moving regions that still fold
+    const label = m.label;
+    label.fill(-1);
+    const queue = m.queue;
+    let islands = 0;
+    for (const t of bad) {
+      for (let v = 0; v < 3; v++) {
+        const seed = tris[t + v];
+        if (mob[seed] <= 0 || label[seed] >= 0) continue;
+        let head = 0, tail = 0;
+        queue[tail++] = seed; label[seed] = islands;
+        while (head < tail) {
+          const i = queue[head++], x = i % S;
+          const nb = [x > 0 ? i - 1 : -1, x < cols ? i + 1 : -1, i - S, i + S];
+          for (const j of nb) if (j >= 0 && j < n && mob[j] > 0 && label[j] < 0) { label[j] = islands; queue[tail++] = j; }
+        }
+        // the island's own triangles, and its displacement to scale
+        const verts = queue.slice(0, tail);
+        const dx = new Float32Array(tail), dy = new Float32Array(tail);
+        for (let q = 0; q < tail; q++) { const i = verts[q]; dx[q] = pos[i * 2] - rest[i * 2]; dy[q] = pos[i * 2 + 1] - rest[i * 2 + 1]; }
+        const own: number[] = [];
+        for (let tt = 0; tt < tris.length; tt += 3) if (label[tris[tt]] === islands || label[tris[tt + 1]] === islands || label[tris[tt + 2]] === islands) own.push(tt);
+        const apply = (k: number) => { for (let q = 0; q < tail; q++) { const i = verts[q]; pos[i * 2] = rest[i * 2] + dx[q] * k; pos[i * 2 + 1] = rest[i * 2 + 1] + dy[q] * k; } };
+        let lo = 0, hi = 1;
+        for (let it = 0; it < 8; it++) {
+          const mid = (lo + hi) / 2;
+          apply(mid);
+          if (own.some(flipped)) hi = mid; else lo = mid;
+        }
+        apply(lo);
+        st.minScale = Math.min(st.minScale, lo);
+        islands++;
+      }
+    }
+    st.islands += islands;
+    let left = 0;
+    for (let t = 0; t < tris.length; t += 3) if (flipped(t)) left++;
+    st.flipsAfter += left;
   }
 
   resize(w: number, h: number) {
@@ -678,7 +835,8 @@ export class Renderer {
           const o = (row * (LUT_N + 1) + i) * 4;
           data[o] = lut.up[i];
           data[o + 1] = lut.lo[i];
-          data[o + 3] = 1;
+          data[o + 2] = lut.band[i];
+          data[o + 3] = lut.skin[i];
         }
       });
       gl.activeTexture(gl.TEXTURE1);
@@ -715,7 +873,7 @@ export class Renderer {
   render(doc: Doc, f: RigFrame, view: View, opts: RenderOptions = {}) {
     const gl = this.gl;
     const W = this.canvas.width, H = this.canvas.height;
-    this.guarded = 0;
+    this.fold = { edges: 0, flips: 0, flipsAfter: 0, islands: 0, unfolded: 0, minScale: 1 };
     gl.viewport(0, 0, W, H);
     if (opts.background && opts.background !== 'transparent') {
       const [r, g, b] = hex(opts.background);
@@ -768,8 +926,8 @@ export class Renderer {
         const hasPaint = (z.paint || opts.livePaint?.has(`${z.id}:paint`)) && this.paintTarget(doc, z) === l.id;
         const hasMarks = z.ctl || opts.livePaint?.has(`${z.id}:ctl`);
         A.set([p.x, p.y, q.x, q.y], ne * 4);
-        B.set([lut.hU, lut.hL, row, row], ne * 4);
-        C.set([z.band, z.skin, z.fill === 'soft' ? 1 : 0, z.roll], ne * 4);
+        B.set([lut.hTop, lut.hL, row, row], ne * 4);
+        C.set([z.follow ?? 1, z.skin, z.fill === 'soft' ? 1 : 0, z.roll], ne * 4);
         D.set([e.upper, e.lower, e.arc, z.meet], ne * 4);
         E.set([e.gx, e.gy, z.loBand, (hasPaint ? 1 : 0) + (hasMarks ? 2 : 0)], ne * 4);
         F.set([box.x, box.y, box.w, box.h], ne * 4);

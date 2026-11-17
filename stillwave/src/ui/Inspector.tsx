@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { isPaintZone, SWAY_FEELS, ZONE_INFO, type Doc, type EyeZone, type Layer, type LidPose, type Zone } from '../engine/types';
 import { eyeSide } from '../engine/rig';
-import { clearEyePaint, deleteMood, deleteZone, liftZone, mirrorEyeZone, restoreLayer } from '../state/actions';
+import { clearEyePaint, deleteMood, deleteZone, focusEye, liftZone, mirrorEyeZone, resetEyeCurves, restoreLayer, setEyeEdit } from '../state/actions';
+import { CURVE_COLOR } from './curveColors';
 import { ExportPanel } from './ExportPanel';
 import { useStore } from '../state/store';
 import { BlinkEditor } from './BlinkEditor';
@@ -159,24 +160,52 @@ function ZoneInspector({ zone, doc }: { zone: Zone; doc: Doc }) {
 
 function EyeInspector({ zone, doc }: { zone: EyeZone; doc: Doc }) {
   const edit = useStore((st) => st.editZone);
+  const set = useStore((st) => st.set);
+  const lid = useStore((st) => st.lidHold[zone.id] ?? 0);
+  const nodeSel = useStore((st) => st.nodeSel);
   const editZone = (id: string, fn: (z: EyeZone) => void) => edit<EyeZone>(id, fn);
   const u = Math.max(doc.width, doc.height);
   const partner = doc.zones.find((z) => z.id === zone.pair);
+  const precise = zone.edit === 'precise';
+  const hold = (v: number) => set({ lidHold: { ...useStore.getState().lidHold, [zone.id]: v } });
   return (
     <>
-      <p className="note">
-        Fit the outline to the eye opening, with the dashed line just above the lashes. Pull the tab beside the eye to close the lid; it stays where you leave it. Double-click a lid line to add a point for tricky shapes.
-      </p>
+      <div className="seg seg-small seg-fill" role="group" aria-label="How this eye is shaped">
+        <button className={!precise ? 'is-on' : ''} title="A few handles: corners, lid peaks and the lash band" onClick={() => setEyeEdit(zone.id, 'simple')}>Simple</button>
+        <button className={precise ? 'is-on' : ''} title="Four curves with nodes and tangent handles, for exact fitting" onClick={() => setEyeEdit(zone.id, 'precise')}>Precise</button>
+      </div>
+      {precise ? (
+        <div className="legend">
+          <p><span className="key" style={{ background: CURVE_COLOR.up }} /> <strong>Lash line</strong>: where the lid edge is. It travels down to the lower lid.</p>
+          <p><span className="key" style={{ background: CURVE_COLOR.band }} /> <strong>Carried band</strong>: lashes, crease and eye shadow, moved down as one piece.</p>
+          <p><span className="key" style={{ background: CURVE_COLOR.skin }} /> <strong>Stretching skin</strong>: fills the gap. Keep its top below the brow.</p>
+          <p className="note">Click a node to show its handles. Double-click a curve to add a node, a node to remove it. Alt-drag a handle to give the node a corner. Arrow keys nudge the selected node by one screen pixel, ten with Shift.</p>
+        </div>
+      ) : (
+        <p className="note">
+          Fit the outline to the eye opening, with the dashed line just above the lashes. Pull the tab beside the eye to close the lid; it stays where you leave it. Double-click a lid line to add a point for tricky shapes.
+        </p>
+      )}
       <div className="row">
         <button className="btn" onClick={() => live.anim.blinkNow()}>Test a blink</button>
         <button className="btn" onClick={() => mirrorEyeZone(zone.id)}>
           <Icon name="mirror" size={14} /> {partner ? `Copy to ${partner.name}` : 'Mirror to other eye'}
         </button>
       </div>
+      {precise && (
+        <Section title="Check the closing" aside={<button className="link" onClick={() => focusEye(zone.id)}>Focus eye</button>}>
+          <div className="seg seg-small seg-fill" role="group" aria-label="Hold the lid at">
+            {[0, 0.25, 0.5, 0.75, 1].map((v) => (
+              <button key={v} className={Math.abs(lid - v) < 0.01 ? 'is-on' : ''} onClick={() => hold(v)}>{v * 100}%</button>
+            ))}
+          </div>
+          {nodeSel && <p className="note">Selected: {({ up: 'lash line', band: 'carried band', skin: 'stretching skin', lo: 'lower lid' } as const)[nodeSel.split(':')[0] as 'up']} node {Number(nodeSel.split(':')[1]) + 1}.</p>}
+        </Section>
+      )}
       <Section title="Hidden skin">
         <div className="seg seg-small seg-fill" role="group" aria-label="How the eyelid skin is made">
           <button className={zone.fill === 'soft' ? 'is-on' : ''} title="Blends the skin tones just above and below the eye. Clean, and leaves eyebrows and fringe alone." onClick={() => editZone(zone.id, (z) => { z.fill = 'soft'; })}>Blend skin</button>
-          <button className={zone.fill === 'stretch' ? 'is-on' : ''} title="Pulls the strip of skin above the lashes down, keeping its shading and creases." onClick={() => editZone(zone.id, (z) => { z.fill = 'stretch'; })}>Pull skin down</button>
+          <button className={zone.fill === 'stretch' ? 'is-on' : ''} title="Pulls the stretching skin down, keeping its shading and creases." onClick={() => editZone(zone.id, (z) => { z.fill = 'stretch'; })}>Pull skin down</button>
         </div>
         <p className="note">Not right for this drawing? Choose <strong>Lid skin</strong> in the tool strip and paint or clone the eyelid yourself. <strong>Lashes</strong> marks stray lashes that should travel, <strong>Keep</strong> protects hair that crosses the eye.</p>
         {(zone.paint || zone.ctl) && (
@@ -187,16 +216,24 @@ function EyeInspector({ zone, doc }: { zone: EyeZone; doc: Doc }) {
         )}
       </Section>
       <Section title="Lid">
-        <ZoneSlider zone={zone} prop="band" label="Lash thickness" min={0} max={u * 0.04} format={px} hint="The lashes that travel down with the lid" />
-        <ZoneSlider zone={zone} prop="skin" label="Skin sample" min={1} max={u * 0.05} format={px} hint="How far above the lashes (and below the eye) skin is taken from. Keep it clear of the eyebrow." />
+        {!precise && <ZoneSlider zone={zone} prop="band" label="Lash thickness" min={0} max={u * 0.04} format={px} hint="The lashes that travel down with the lid" />}
+        <ZoneSlider zone={zone} prop="skin" label={precise ? 'Skin below the eye' : 'Skin sample'} min={1} max={u * 0.05} format={px} hint={precise ? 'How far below the lower lid skin is sampled and stretched' : 'How far above the lashes (and below the eye) skin is taken from. Keep it clear of the eyebrow.'} />
+        <ZoneSlider zone={zone} prop="follow" label="Crease follow" reset={1} hint="How far the top of the carried band (the crease) moves with the lashes. Lower values keep the crease higher as the eye closes." />
         <ZoneSlider zone={zone} prop="roll" label="Lash roll" reset={0.4} hint="Lashes thin out as the lid closes, as if tipping away from you" />
         <ZoneSlider zone={zone} prop="loBand" label="Lower lash" min={0} max={u * 0.02} format={px} />
         <ZoneSlider zone={zone} prop="meet" label="Lower lid rise" max={0.6} reset={0.08} hint="0% keeps the lower lid still and lets the upper lid do all the travelling" />
       </Section>
-      <Section title="Curve">
-        {zone.upPts.length === 0 ? <ZoneSlider zone={zone} prop="upRound" label="Upper roundness" min={0.4} max={1.6} reset={0.8} format={(v) => v.toFixed(2)} /> : <p className="note">The upper lid follows its {zone.upPts.length + 1} points. Double-click a small point to remove it.</p>}
-        {zone.loPts.length === 0 ? <ZoneSlider zone={zone} prop="loRound" label="Lower roundness" min={0.4} max={1.6} reset={0.9} format={(v) => v.toFixed(2)} /> : <p className="note">The lower lid follows its {zone.loPts.length + 1} points.</p>}
-      </Section>
+      {!precise && (
+        <Section title="Curve">
+          {zone.upPts.length === 0 ? <ZoneSlider zone={zone} prop="upRound" label="Upper roundness" min={0.4} max={1.6} reset={0.8} format={(v) => v.toFixed(2)} /> : <p className="note">The upper lid follows its {zone.upPts.length + 1} points. Double-click a small point to remove it.</p>}
+          {zone.loPts.length === 0 ? <ZoneSlider zone={zone} prop="loRound" label="Lower roundness" min={0.4} max={1.6} reset={0.9} format={(v) => v.toFixed(2)} /> : <p className="note">The lower lid follows its {zone.loPts.length + 1} points.</p>}
+        </Section>
+      )}
+      {precise && (
+        <div className="row">
+          <button className="btn btn-small" onClick={() => resetEyeCurves(zone.id)} title="Throw away the precise curves and start again from the simple shape">Rebuild curves from the simple shape</button>
+        </div>
+      )}
       <Section title="Gaze">
         <ZoneSlider zone={zone} prop="gaze" label="Iris travel" reset={0.6} hint="How far the iris slides when the avatar looks around" />
       </Section>

@@ -1,6 +1,6 @@
 import { images, makeCanvas, zoneBounds } from '../engine/assets';
 import { liftRegion, newRepairLayer } from '../engine/retouch';
-import { axisFrame, mirrorEye } from '../engine/geom';
+import { axisFrame, curvesFromSimple, eyeBox, mirrorEye } from '../engine/geom';
 import { eyeAxis } from '../engine/rig';
 import { isPaintZone, makeZone, neutralPose, uid, ZONE_INFO, type EyeZone, type ZoneType } from '../engine/types';
 import { live } from '../ui/live';
@@ -48,7 +48,7 @@ export function mirrorEyeZone(id: string) {
     s.editZone<EyeZone>(partner.id, (z) => {
       Object.assign(z, {
         a: { x: m.a.x + dx, y: m.a.y + dy }, b: { x: m.b.x + dx, y: m.b.y + dy }, upT: m.upT, loT: m.loT,
-        upPts: m.upPts, loPts: m.loPts, fill: eye.fill, roll: eye.roll,
+        upPts: m.upPts, loPts: m.loPts, fill: eye.fill, roll: eye.roll, curves: m.curves, edit: eye.edit, follow: eye.follow,
         upH: eye.upH, loH: eye.loH, upRound: eye.upRound, loRound: eye.loRound, band: eye.band, loBand: eye.loBand, skin: eye.skin, meet: eye.meet, gaze: eye.gaze,
       });
     });
@@ -175,4 +175,33 @@ export function clearEyePaint(id: string, which: 'paint' | 'ctl' | 'both') {
     if (which !== 'paint') z.ctl = null;
     if (!z.paint && !z.ctl) z.box = null;
   });
+}
+
+/** Switch an eye between its simple controls and its four precise curves. Both shapes are kept. */
+export function setEyeEdit(id: string, edit: 'simple' | 'precise') {
+  const s = S();
+  s.editZone<EyeZone>(id, (z) => {
+    if (edit === 'precise' && !z.curves) z.curves = curvesFromSimple(z);
+    z.edit = edit;
+  });
+  s.set({ nodeSel: null });
+}
+
+/** Start the precise curves over from the current simple shape. */
+export function resetEyeCurves(id: string) {
+  const s = S();
+  s.editZone<EyeZone>(id, (z) => { z.curves = curvesFromSimple({ ...z, edit: 'simple' }); });
+  s.set({ nodeSel: null });
+}
+
+/** Zoom the canvas onto one eye. */
+export function focusEye(id: string) {
+  const s = S();
+  const z = s.doc.zones.find((x) => x.id === id);
+  if (z?.type !== 'eye') return;
+  const box = eyeBox(z);
+  const w = window.innerWidth - (s.panels ? 640 : 80), h = window.innerHeight - 200;
+  const zoom = Math.min(24, Math.min(w / (box.w * 1.15), h / (box.h * 1.15)));
+  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+  live.view = { zoom, panX: (s.panels ? 300 : 40) + w / 2 - cx * zoom, panY: 90 + h / 2 - cy * zoom };
 }
